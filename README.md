@@ -1,10 +1,14 @@
 # Hladysh Ivan · AI Automation Engineer
 
+<img src="assets/ivan-hladysh.jpg" alt="Hladysh Ivan" width="200" align="right">
+
 I build systems that take repetitive manual work off people: invoices checked against a cost estimate, competitor prices collected every morning, sales calls scored against a script. Make, n8n, LLM APIs and custom scrapers, wired into the tools a business already uses.
 
 Before automation I spent 10+ years in hospitality, from waiter to running a venue. I look at a process as an operations manager first and as an engineer second.
 
 Kyiv, Ukraine · [Telegram @Ivan_Hladysh](https://t.me/Ivan_Hladysh) · [h2omoby@gmail.com](mailto:h2omoby@gmail.com)
+
+<br clear="right">
 
 ---
 
