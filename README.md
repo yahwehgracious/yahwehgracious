@@ -1,4 +1,4 @@
-# Ivan Hladysh · AI Automation Engineer
+# Hladysh Ivan · AI Automation Engineer
 
 I build systems that take repetitive manual work off people: invoices checked against a cost estimate, competitor prices collected every morning, sales calls scored against a script. Make, n8n, LLM APIs and custom scrapers, wired into the tools a business already uses.
 
