@@ -1,19 +1,19 @@
-# 🏠 Telegram-агрегатор оренди житла
+# 🏠 Telegram rental aggregator
 
-`Нерухомість` · Apify, Node.js, OpenAI, Make, Telegram Bot API
+`Real estate` · Apify, Node.js, OpenAI, Make, Telegram Bot API
 
-> 👥 **Для кого.** Люди, які шукають оренду і не хочуть щодня перевіряти кілька сайтів руками.
+> **Who it is for.** People looking for a rental who do not want to check several sites by hand every day.
 
-## Проблема
+## Problem
 
-Оголошення розкидані по різних майданчиках, фільтри на кожному свої, одне й те саме житло показується по кілька разів.
+Listings are scattered across platforms, each has its own filters, and the same apartment shows up several times.
 
-## Що зроблено
+## What I built
 
-Користувач пише запит звичайним реченням. Модель розбирає його на 23 структуровані параметри, кастомні Apify-актори на Node.js збирають оголошення з платформ оренди, Make оркеструє потік, дублі відсікаються через Data Store.
+The user writes a request in a plain sentence. The model parses it into 23 structured parameters, custom Apify actors in Node.js collect listings from rental platforms, Make orchestrates the flow, and duplicates are cut off through a Data Store.
 
-> 🔑 **Ключове рішення.** Власні актори замість готових. Платформи мають неочевидну поведінку API (категорії, типи операцій, формати фото, фільтр за містом), яку готові рішення не закривають.
+> 🔑 **Key decision.** Custom actors instead of off-the-shelf ones. The platforms have non-obvious API behaviour (categories, operation types, photo formats, city filter) that ready-made solutions do not cover.
 
 ---
 
-[До всіх кейсів](../README.md#кейси) · [Написати в Telegram](https://t.me/Ivan_Hladysh)
+[All case studies](../README.md#case-studies) · [Telegram](https://t.me/Ivan_Hladysh)

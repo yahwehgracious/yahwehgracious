@@ -1,19 +1,19 @@
-# 📞 Аналітика дзвінків відділу продажів
+# 📞 Sales call analytics
 
-`Продажі` · IP-телефонія, Whisper
+`Sales` · IP telephony, Whisper
 
-> 👥 **Для кого.** Керівники відділів продажу і кол-центри.
+> **Who it is for.** Heads of sales and call centres.
 
-## Проблема
+## Problem
 
-РОП фізично не прослухає 200 дзвінків на тиждень. Слухає п'ять і робить висновки про всіх.
+A head of sales cannot physically listen to 200 calls a week. They listen to five and draw conclusions about everyone.
 
-## Що зроблено
+## What I built
 
-Транскрипція українською, розбір розмови за вашим скриптом продажів, оцінка за критеріями. Далі Router: негативна розмова дає миттєвий алерт керівнику, нейтральна ставить задачу на follow-up у календар.
+Transcription in Ukrainian, a breakdown of the conversation against the client's sales script, scoring by criteria. Then a Router: a negative call triggers an instant alert to the manager, a neutral one creates a follow-up task in the calendar.
 
-> ✅ **Результат.** Керівник читає замість того, щоб слухати, і бачить усі дзвінки, а не вибірку.
+> ✅ **Result.** The manager reads instead of listening and sees every call, not a sample.
 
 ---
 
-[До всіх кейсів](../README.md#кейси) · [Написати в Telegram](https://t.me/Ivan_Hladysh)
+[All case studies](../README.md#case-studies) · [Telegram](https://t.me/Ivan_Hladysh)

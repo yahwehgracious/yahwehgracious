@@ -1,119 +1,85 @@
-# ⚙️ Іван Гладиш. AI-автоматизація бізнес-процесів
+# Ivan Hladysh · AI Automation Engineer
 
-## Ви вже платите за автоматизацію. Просто платите людям, які роблять це руками
+I build systems that take repetitive manual work off people: invoices checked against a cost estimate, competitor prices collected every morning, sales calls scored against a script. Make, n8n, LLM APIs and custom scrapers, wired into the tools a business already uses.
 
-Щомісяця. Адміністратору, який дві години на день переносить заявки в CRM: це чверть його окладу, і так рік за роком. Менеджеру, який звіряє рахунки і знаходить помилку через місяць після оплати. Заявкою, на яку відповіли завтра, а клієнт купив сьогодні в іншого.
+Before automation I spent 10+ years in hospitality, from waiter to running a venue. I look at a process as an operations manager first and as an engineer second.
 
-Я рахую, у що це обходиться вам за рік, вашими цифрами. А потім збираю систему, після якої цей рядок витрат зникає.
-
-> ✉️ **Напишіть, який процес у вас роблять руками. З цього почнемо:** [Telegram @Ivan_Hladysh](https://t.me/Ivan_Hladysh)
-
-| 🛠️ З 2024 року | 🍸 10+ років у HoReCa | 🧮 58 модулів |
-| --- | --- | --- |
-| збираю автоматизації на Make, n8n та LLM API | від офіціанта до керування закладом, тому бачу процес зсередини | у найбільшому сценарії, вартість прогону порахована до запуску |
+Kyiv, Ukraine · [Telegram @Ivan_Hladysh](https://t.me/Ivan_Hladysh) · [h2omoby@gmail.com](mailto:h2omoby@gmail.com)
 
 ---
 
-## Кейси
+## How I build
 
-Кожен кейс відкривається: для кого, яка була проблема, що зроблено і яке рішення було ключовим.
+- **The model reads, code does the math.** LLMs parse documents and classify. Sums, limits, balances and unit conversions run in deterministic logic that gives the same answer twice.
+- **Model calls are counted before launch.** One call per document instead of one per line, so processing cost does not grow with document size.
+- **Duplicates stop at the door.** A document that was already processed, a post that is already in the table, a button pressed twice: none of them change the data.
+- **Failures are loud.** When a source does not respond or a file cannot be parsed, a person gets a clear message and the system retries. No silent gaps.
+- **A human stays where judgment is needed.** Disputed items and content drafts go to a person with approve and reject buttons. Everything between those points is automated.
+- **Built to be handed over.** Access, documentation and a description of the logic stay with the client.
 
-**🧾 [Контроль закупівель проти кошторису](cases/01-procurement-control.md)**<br>
-`Будівництво` · n8n, Claude API, Telegram Bot API, Google Sheets, Google Drive<br>
-Кошторис і рахунки надходять у Telegram. Система сама заводить об'єкт, розпізнає документ, звіряє кожну позицію з кошторисом за 4 рівнями і віддає керівнику рішення з кнопками.
+---
 
-**🏭 [Контент-завод для Telegram-каналу](cases/02-telegram-content-factory.md)**<br>
-`Контент` · n8n, Apify, OpenAI, Telegram Bot API, Google Sheets<br>
-Система стежить за каналами-джерелами, збирає пости з метриками, переписує відібрані у стилі бренду і надсилає чернетку з медіа на погодження.
+## Case studies
 
-**💬 [Аналітика коментарів Instagram](cases/03-instagram-comments-analytics.md)**<br>
-`Маркетинг` · Make, Apify, OpenAI, Google Sheets<br>
-Система з трьох сценаріїв: збирає нові коментарі під постами, визначає тональність, витягує питання і пропозиції, складає регулярний і місячний звіти в таблицю.
+Each page covers who it is for, the problem, what was built and the key decision.
 
-**🏠 [Telegram-агрегатор оренди житла](cases/04-rental-aggregator.md)**<br>
-`Нерухомість` · Apify, Node.js, OpenAI, Make, Telegram Bot API<br>
-Запит звичайним реченням розбирається на 23 параметри пошуку, оголошення з платформ оренди приходять без дублів.
+**🧾 [Procurement control against the cost estimate](cases/01-procurement-control.md)**<br>
+`Construction` · n8n, Claude API, Telegram Bot API, Google Sheets, Google Drive<br>
+The cost estimate and purchase documents arrive in Telegram. The system registers the project, reads each document, checks every line against the estimate on 4 levels and returns a decision with buttons to the manager.
 
-**🎙️ [Голосовий бот для інвентаризації бару](cases/05-bar-inventory-voice-bot.md)**<br>
+**🏭 [Content pipeline for a Telegram channel](cases/02-telegram-content-factory.md)**<br>
+`Content` · n8n, Apify, OpenAI, Telegram Bot API, Google Sheets<br>
+The system watches source channels, collects posts with metrics, rewrites the selected ones in the brand voice and sends a draft with media for approval.
+
+**💬 [Instagram comment analytics](cases/03-instagram-comments-analytics.md)**<br>
+`Marketing` · Make, Apify, OpenAI, Google Sheets<br>
+Three scenarios on one sheet: collect new comments, label sentiment, extract questions and suggestions, build regular and monthly reports.
+
+**🏠 [Telegram rental aggregator](cases/04-rental-aggregator.md)**<br>
+`Real estate` · Apify, Node.js, OpenAI, Make, Telegram Bot API<br>
+A plain-language request is parsed into 23 search parameters, and listings from rental platforms arrive without duplicates.
+
+**🎙️ [Voice bot for bar inventory](cases/05-bar-inventory-voice-bot.md)**<br>
 `HoReCa` · Make, Whisper, OpenAI, Google Sheets<br>
-Бармен надиктовує залишки голосом, система розпізнає позиції, враховує вагу тари і пише в таблицю.
+The bartender dictates stock by voice, the system matches items, subtracts bottle weight and writes to the sheet.
 
-**📊 [Моніторинг цін конкурентів](cases/06-competitor-price-monitoring.md)**<br>
-`Роздріб / e-commerce` · Make, Google Sheets<br>
-Щоденний збір оголошень конкурентів, зіставлення з вашим прайсом, звіт у таблиці.
+**📊 [Competitor price monitoring](cases/06-competitor-price-monitoring.md)**<br>
+`Retail / e-commerce` · Make, Google Sheets<br>
+Daily collection of competitor listings, matching against the client's price list, report in a sheet.
 
-**📞 [Аналітика дзвінків відділу продажів](cases/07-sales-calls-analytics.md)**<br>
-`Продажі` · IP-телефонія, Whisper<br>
-Транскрипція, оцінка розмови за скриптом продажів, алерт керівнику на негатив і задача на follow-up.
+**📞 [Sales call analytics](cases/07-sales-calls-analytics.md)**<br>
+`Sales` · IP telephony, Whisper<br>
+Transcription, scoring against the sales script, an alert to the manager on a negative call and a follow-up task.
 
-**🧵 [Автопостинг контенту в Threads](cases/08-threads-autoposting.md)**<br>
-`Контент` · Threads API, Google Sheets<br>
-Публікація з таблиці за розкладом, відсів дублів, id поста пишеться назад. Токен оновлюється сам.
+**🧵 [Threads autoposting](cases/08-threads-autoposting.md)**<br>
+`Content` · Threads API, Google Sheets<br>
+Scheduled publishing from a sheet, duplicate filtering, the post id written back. The access token refreshes itself.
 
-**🗄️ [Аналітика на природній мові поверх MS SQL Server](cases/09-nl-analytics-mssql.md)**<br>
-`Роздріб / e-commerce` · MS SQL Server<br>
-Керівник питає звичайним реченням і отримує цифру. Понад 100 метрик, інтеграція з CRM і BAS.
+**🗄️ [Natural-language analytics over MS SQL Server](cases/09-nl-analytics-mssql.md)**<br>
+`Retail / e-commerce` · MS SQL Server<br>
+A manager asks in a plain sentence and gets the number. 100+ metrics, integrated with CRM and BAS.
 
-**📅 [Бот запису на кілька виконавців](cases/10-booking-bot.md)**<br>
-`Послуги` · Make, Telegram Bot API<br>
-Telegram-бот: кілька майстрів із власними календарями, вільні слоти рахує код, нагадування автоматичні.
-
----
-
-## Як я працюю
-
-🧮 **Спершу цифра, потім розмова про ціну**<br>
-Рахую, у що процес обходиться вам зараз: зарплати, аутсорс, сервіси, втрачені заявки. За місяць і за рік. Коли ця сума лежить на столі, вартість проєкту не треба пояснювати: її видно в порівнянні.
-
-🚫 **Якщо цифра маленька, кажу одразу**<br>
-Буває, що процес дратує, але коштує копійки. Тоді автоматизація не окупиться, і ви почуєте це до початку робіт, а не після рахунку.
-
-⚖️ **Гроші рахує код, а не модель**<br>
-Модель читає документ і розкладає його по полицях. Суми, ліміти й залишки рахує звичайна логіка, яка двічі дає ту саму відповідь.
-
-🔐 **Система лишається у вас**<br>
-Доступи, документація, опис логіки. Захочете передати іншому підряднику, передасте без мене.
-
-🤝 **Говорите зі мною, роблю теж я**<br>
-Від першої розмови до передачі. Без менеджера, який переказує ваші слова виконавцю і губить половину.
+**📅 [Booking bot for several specialists](cases/10-booking-bot.md)**<br>
+`Services` · Make, Telegram Bot API<br>
+A Telegram bot with a separate calendar per specialist, free slots calculated in code, automatic reminders.
 
 ---
 
-## Формати роботи
-
-🔍 **Аудит процесу** · *1-2 дні*<br>
-Беру один ваш процес і рахую, скільки він коштує вам зараз: за місяць і за рік. Разом із цифрою віддаю схему автоматизації, перелік інтеграцій, строк і ціну. Якщо йдемо далі, вартість аудиту зараховується в проєкт.
-
-🚀 **Один сценарій під ключ** · *1-2 тижні*<br>
-Проєктування, збірка, тестування на ваших даних, документація, передача доступів, місяць супроводу після запуску.
-
-🛟 **Супровід** · *1 місяць, входить у вартість*<br>
-Стежу, щоб автоматизація працювала: моніторинг падінь і правки виключно в межах ТЗ. Зміни логіки й нові функції йдуть окремою задачею.
-
----
-
-## Чого я не роблю
-
-- Не роблю сайти, дизайн і не веду SMM.
-- Не беруся за процес, який ніхто в компанії не може описати словами. Автоматизувати хаос означає отримати швидкий хаос.
-
----
-
-## Стек
+## Stack
 
 | | |
 | --- | --- |
-| **Оркестрація** | Make, n8n, Google Apps Script |
-| **AI** | LLM через API, розпізнавання документів і голосу |
-| **Вайбкодинг** | Claude Code: Python, JavaScript, Node.js. Код пишу з AI, читаю і правлю сам |
-| **Дані та парсинг** | Apify з кастомними акторами, REST API, вебхуки, OAuth, MS SQL Server |
-| **Інтеграції** | Telegram і WhatsApp Bot API, IP-телефонія, Google Sheets, Drive і Calendar, Threads Graph API, Meta Marketing API, Manychat, GoHighLevel, Retell AI, CRM, BAS і ERP |
+| **Orchestration** | Make, n8n, Google Apps Script |
+| **AI** | LLMs via API, document and speech recognition |
+| **Code** | Python, JavaScript, Node.js, written with Claude Code. I read, debug and fix it myself |
+| **Data and scraping** | Apify with custom actors, REST APIs, webhooks, OAuth, MS SQL Server |
+| **Integrations** | Telegram and WhatsApp Bot API, IP telephony, Google Sheets, Drive and Calendar, Threads Graph API, Meta Marketing API, Manychat, GoHighLevel, Retell AI, CRM, BAS and ERP |
 
 ---
 
-## Написати мені
+## Contact
 
-- ✈️ **Telegram:** [@Ivan_Hladysh](https://t.me/Ivan_Hladysh)
-- ✉️ **Пошта:** [h2omoby@gmail.com](mailto:h2omoby@gmail.com)
+- **Telegram:** [@Ivan_Hladysh](https://t.me/Ivan_Hladysh)
+- **Email:** [h2omoby@gmail.com](mailto:h2omoby@gmail.com)
 
-Напишіть одним реченням, який процес забирає найбільше часу. На короткому дзвінку розберемося, хто його зараз робить і скільки разів на день, і я скажу, чи є там що рахувати. Точну суму за місяць і за рік дає аудит.
+Tell me in one sentence which process still runs by hand, and I will tell you whether it is worth automating.

@@ -1,15 +1,15 @@
-# 🗄️ Аналітика на природній мові поверх MS SQL Server
+# 🗄️ Natural-language analytics over MS SQL Server
 
-`Роздріб / e-commerce` · MS SQL Server
+`Retail / e-commerce` · MS SQL Server
 
-> 👥 **Для кого.** Роздріб, де дані лежать у базі, а дістати з неї цифру може тільки аналітик.
+> **Who it is for.** Retail where the data sits in a database and only an analyst can get a number out of it.
 
-## Що зроблено
+## What I built
 
-Аналітика на природній мові поверх MS SQL Server для роздрібного клієнта. Понад 100 метрик, інтеграція з CRM і BAS.
+Natural-language analytics on top of MS SQL Server for a retail client. 100+ metrics, integrated with CRM and BAS.
 
-> ✅ **Результат.** Керівник питає звичайним реченням і отримує цифру, без аналітика посередині.
+> ✅ **Result.** A manager asks in a plain sentence and gets the number, with no analyst in the middle.
 
 ---
 
-[До всіх кейсів](../README.md#кейси) · [Написати в Telegram](https://t.me/Ivan_Hladysh)
+[All case studies](../README.md#case-studies) · [Telegram](https://t.me/Ivan_Hladysh)

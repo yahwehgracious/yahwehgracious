@@ -1,17 +1,17 @@
-# 📅 Бот запису на кілька виконавців
+# 📅 Booking bot for several specialists
 
-`Послуги` · Make, Telegram Bot API
+`Services` · Make, Telegram Bot API
 
-> 👥 **Для кого.** Послуги, де кілька майстрів або консультантів і спільний потік клієнтів.
+> **Who it is for.** Service businesses with several specialists or consultants and a shared flow of clients.
 
-## Проблема
+## Problem
 
-Запис ведуть у переписці, звідси накладки, подвійні броні і забуті клієнти.
+Bookings are handled in chat, which leads to overlaps, double bookings and forgotten clients.
 
-## Що зроблено
+## What I built
 
-Telegram-бот, кілька виконавців із власними календарями, вільні слоти рахуються кодом за реальною зайнятістю, підтвердження і нагадування автоматичні.
+A Telegram bot with several specialists, each with their own calendar. Free slots are calculated in code from real availability, and confirmations and reminders are automatic.
 
 ---
 
-[До всіх кейсів](../README.md#кейси) · [Написати в Telegram](https://t.me/Ivan_Hladysh)
+[All case studies](../README.md#case-studies) · [Telegram](https://t.me/Ivan_Hladysh)

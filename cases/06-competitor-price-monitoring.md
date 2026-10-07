@@ -1,19 +1,19 @@
-# 📊 Моніторинг цін конкурентів
+# 📊 Competitor price monitoring
 
-`Роздріб / e-commerce` · Make, Google Sheets
+`Retail / e-commerce` · Make, Google Sheets
 
-> 👥 **Для кого.** Роздріб і e-commerce, де ціна конкурента змінюється щодня, а ваша ні.
+> **Who it is for.** Retail and e-commerce where a competitor's price changes daily and yours does not.
 
-## Проблема
+## Problem
 
-Людина відкриває оголошення руками і зводить у таблицю. На 50 позиціях це пів робочого дня, і робити це треба щодня.
+A person opens listings by hand and copies them into a spreadsheet. For 50 items that is half a working day, and it has to be done every day.
 
-## Що зроблено
+## What I built
 
-Щоденний збір оголошень, зіставлення з вашим прайсом за назвою і параметрами, відсів SEO-сміття в описах, звіт у таблиці.
+Daily collection of listings, matching against the client's price list by name and parameters, filtering SEO noise out of descriptions, and a report in a sheet.
 
-> 🔑 **Ключове рішення.** Вартість API я рахую до запуску, а не після рахунку в кінці місяця. У цьому проєкті перевів сценарій на дешевшу модель і переписав промпт близько двадцяти разів, поки вартість прогону не стала прийнятною при тій самій точності.
+> 🔑 **Key decision.** API cost is estimated before launch, not discovered on the invoice at the end of the month. In this project I moved the scenario to a cheaper model and iterated on the prompt until the cost per run was acceptable at the same accuracy.
 
 ---
 
-[До всіх кейсів](../README.md#кейси) · [Написати в Telegram](https://t.me/Ivan_Hladysh)
+[All case studies](../README.md#case-studies) · [Telegram](https://t.me/Ivan_Hladysh)

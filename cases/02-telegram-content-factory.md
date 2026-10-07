@@ -1,52 +1,52 @@
-# 🏭 Контент-завод для Telegram-каналу
+# 🏭 Content pipeline for a Telegram channel
 
-`Контент` · n8n, Apify, OpenAI, Telegram Bot API, Google Sheets
+`Content` · n8n, Apify, OpenAI, Telegram Bot API, Google Sheets
 
-> 👥 **Для кого.** Власники Telegram-каналів і контент-команди, які щодня шукають теми в чужих каналах і переписують їх під себе руками.
+> **Who it is for.** Telegram channel owners and content teams who look for topics in other channels every day and rewrite them by hand.
 
-## Проблема
+## Problem
 
-Щоб канал виходив регулярно, хтось щодня гортає канали у своїй ніші, вибирає пости, що зайшли, переписує їх своїм голосом і шукає до них картинку чи відео. Це щоденна ручна робота, і тримається вона на одній людині.
+To keep a channel publishing regularly, someone scrolls through channels in the niche every day, picks the posts that performed, rewrites them in the channel's voice and looks for an image or a video. It is daily manual work, and it depends on one person.
 
-## Що зроблено
+## What I built
 
-Система сама стежить за джерелами, показує, які пости зайшли найкраще, і готує чернетку у стилі каналу. Людина лише вибирає, що брати, і погоджує результат.
+The system watches the sources, shows which posts performed best and prepares a draft in the channel's style. A person only chooses what to take and approves the result.
 
-## Як це працює
+## How it works
 
-### 1. Моніторинг джерел
+### 1. Source monitoring
 
-- Список каналів-джерел зберігається в налаштуваннях, його можна міняти без правок у сценарії.
-- Система забирає свіжі пости з текстом, медіа, переглядами та реакціями.
-- Нові пости додаються в таблицю, у вже знайомих оновлюються метрики.
-- Для кожного поста рахується співвідношення переглядів до реакцій, щоб було видно, що справді зачепило аудиторію.
+- The list of source channels lives in settings and can be changed without touching the workflow.
+- The system pulls fresh posts with text, media, views and reactions.
+- New posts are added to the sheet, known ones get their metrics updated.
+- For each post it calculates the ratio of views to reactions, to show what actually resonated.
 
-### 2. Генерація чернетки
+### 2. Draft generation
 
-- Відібрані в таблиці пости система переписує у стилі каналу. Стиль зберігається в налаштуваннях і міняється в одному місці.
-- Медіа з оригіналу підтягується автоматично: відео, фото або лише текст.
-- Чернетка приходить у Telegram у готовому вигляді, так, як вона виглядатиме в каналі.
+- Posts selected in the sheet are rewritten in the channel's style. The style is stored in settings and changed in one place.
+- Media from the original is attached automatically: video, photo or text only.
+- The draft arrives in Telegram exactly as it will look in the channel.
 
-### 3. Погодження
+### 3. Approval
 
-- Під кожною чернеткою дві кнопки: згенерувати новий варіант або опублікувати.
-- Усі чернетки зберігаються в окремому аркуші разом з оригіналом і джерелом.
-- Оброблений пост позначається, щоб не піти в роботу вдруге.
+- Two buttons under each draft: generate another version or publish.
+- All drafts are stored on a separate sheet together with the original and the source.
+- A processed post is marked so it does not go into work twice.
 
-## Що враховано
+## Edge cases covered
 
-- **Дублі.** Пост, який уже є в таблиці, не додається повторно, оновлюються лише його цифри.
-- **Збої збору.** Якщо джерело не відповіло, приходить сповіщення в Telegram, а система сама повторює спробу через 15 хвилин.
-- **Порожні пости.** Пости без тексту або без переглядів відсіюються ще до таблиці.
+- **Duplicates.** A post that is already in the sheet is not added again, only its numbers are updated.
+- **Collection failures.** If a source did not respond, a notification goes to Telegram and the system retries in 15 minutes.
+- **Empty posts.** Posts without text or without views are filtered out before they reach the sheet.
 
-> 🔑 **Ключове рішення.** Людина лишається в процесі у двох точках: вибирає, які пости брати, і погоджує чернетку. Усе між цими точками робить система. Канал не перетворюється на потік автоматичних текстів без контролю.
+> 🔑 **Key decision.** A human stays in the process at two points: choosing which posts to take and approving the draft. Everything between those points is done by the system. The channel does not turn into a stream of automatic text with no control.
 
-## Масштаб
+## Scale
 
-- Один workflow в n8n, дві гілки: моніторинг і генерація.
-- Три формати чернетки: відео, фото, текст.
-- Одне звернення до мовної моделі на пост.
+- One n8n workflow, two branches: monitoring and generation.
+- Three draft formats: video, photo, text.
+- One model call per post.
 
 ---
 
-[До всіх кейсів](../README.md#кейси) · [Написати в Telegram](https://t.me/Ivan_Hladysh)
+[All case studies](../README.md#case-studies) · [Telegram](https://t.me/Ivan_Hladysh)

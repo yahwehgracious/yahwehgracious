@@ -1,19 +1,19 @@
-# 🧵 Автопостинг контенту в Threads
+# 🧵 Threads autoposting
 
-`Контент` · Threads API, Google Sheets
+`Content` · Threads API, Google Sheets
 
-> 👥 **Для кого.** Бізнеси і спеціалісти, у яких є контент-план, але публікує його людина.
+> **Who it is for.** Businesses and professionals who have a content plan but a person publishes it.
 
-## Проблема
+## Problem
 
-Контент-план лежить у таблиці, а хтось щодня о дев'ятій відкриває телефон і копіює текст руками. Забув один день, план поїхав.
+The content plan sits in a spreadsheet, and someone opens the phone at nine every morning and copies the text by hand. One missed day and the plan slips.
 
-## Що зроблено
+## What I built
 
-Таблиця залишається єдиним джерелом правди. Публікація йде за розкладом, дублі відсікаються складеним фільтром, id опублікованого поста пишеться назад у таблицю.
+The spreadsheet stays the single source of truth. Publishing runs on a schedule, duplicates are cut off by a composite filter, and the id of the published post is written back to the sheet.
 
-> 🔑 **Деталь, яку зазвичай пропускають.** Токен доступу до Threads живе 60 днів. Система оновлює його сама. Тому вона не падає через два місяці після здачі, як це буває у сценаріїв, зібраних на швидку руку.
+> 🔑 **The detail that usually gets missed.** A Threads access token lives for 60 days. The system refreshes it on its own, so it does not break two months after handover.
 
 ---
 
-[До всіх кейсів](../README.md#кейси) · [Написати в Telegram](https://t.me/Ivan_Hladysh)
+[All case studies](../README.md#case-studies) · [Telegram](https://t.me/Ivan_Hladysh)

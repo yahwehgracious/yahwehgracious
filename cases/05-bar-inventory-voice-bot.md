@@ -1,19 +1,19 @@
-# 🎙️ Голосовий бот для інвентаризації бару
+# 🎙️ Voice bot for bar inventory
 
 `HoReCa` · Make, Whisper, OpenAI, Google Sheets
 
-> 👥 **Для кого.** Бари і ресторани, де інвентаризацію роблять із блокнотом і зводять у таблицю після зміни.
+> **Who it is for.** Bars and restaurants where inventory is done with a notepad and typed into a spreadsheet after the shift.
 
-## Проблема
+## Problem
 
-Інвентаризація бару це сотні позицій, зважування пляшок і ручне внесення цифр. Довго, з помилками в назвах і в перерахунку ваги.
+A bar inventory means hundreds of items, weighing bottles and entering numbers by hand. It is slow, with mistakes in names and in weight conversion.
 
-## Що зроблено
+## What I built
 
-Залишки надиктовуються голосом. Whisper транскрибує, модель зіставляє сказане з номенклатурою, вага тари віднімається розрахунком, результат лягає в Google Sheets.
+Stock is dictated by voice. Whisper transcribes, the model matches what was said to the product list, bottle weight is subtracted by calculation, and the result lands in Google Sheets.
 
-> 🔑 **Ключове рішення.** Нечітке зіставлення назв проти мапи з 277 SKU: бармен каже так, як звик, а в таблицю потрапляє правильна позиція.
+> 🔑 **Key decision.** Fuzzy name matching against a map of 277 SKUs: the bartender speaks the way they are used to, and the correct item ends up in the sheet.
 
 ---
 
-[До всіх кейсів](../README.md#кейси) · [Написати в Telegram](https://t.me/Ivan_Hladysh)
+[All case studies](../README.md#case-studies) · [Telegram](https://t.me/Ivan_Hladysh)

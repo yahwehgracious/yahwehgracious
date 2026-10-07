@@ -1,61 +1,61 @@
-# 🧾 Контроль закупівель проти кошторису
+# 🧾 Procurement control against the cost estimate
 
-`Будівництво` · n8n, Claude API, Telegram Bot API, Google Sheets, Google Drive
+`Construction` · n8n, Claude API, Telegram Bot API, Google Sheets, Google Drive
 
-> 👥 **Для кого.** Будівельні компанії та підрядники, де рахунки і чеки звіряють з кошторисом руками, а гроші йдуть швидше, ніж встигає контроль.
+> **Who it is for.** Construction companies and contractors where invoices and receipts are checked against the cost estimate by hand, and money leaves faster than control can keep up.
 
-## Проблема
+## Problem
 
-Менеджер сам звіряє рахунок постачальника з кошторисом. Зайва позиція, завищена ціна, перевищений обсяг або підміна матеріалу спливають через місяць, коли платіж уже пройшов. На кожному новому об'єкті кошторис інший, тому контроль щоразу починається з нуля.
+A manager checks each supplier invoice against the estimate manually. An extra item, an inflated price, an exceeded quantity or a substituted material surfaces a month later, when the payment has already gone through. Every new project has a different estimate, so control starts from zero each time.
 
-## Що зроблено
+## What I built
 
-Один Telegram-бот, у який надсилають і кошторис, і всі документи на закупівлю. Система сама заводить об'єкт, розпізнає документ, звіряє кожну позицію з кошторисом і повертає керівнику готове рішення по кожному рядку.
+One Telegram bot that receives both the cost estimate and every purchase document. The system registers the project, reads the document, checks every line against the estimate and returns a ready decision for each row to the manager.
 
-## Як це працює
+## How it works
 
-### 1. Новий об'єкт підключається одним файлом
+### 1. A new project is connected with one file
 
-- Кошторис надсилають у Telegram файлом Excel у тому вигляді, як його вивантажила кошторисна програма.
-- Система сама розбирає його, бере розділ матеріалів і створює окрему таблицю об'єкта з шаблону.
-- Після розбору звіряє суму позицій з підсумком розділу і перевіряє, чи немає пропусків у нумерації. Якщо щось не зійшлось, пише про це одразу.
-- Об'єкт потрапляє в реєстр і стає активним: усі наступні документи йдуть у нього.
+- The estimate is sent to Telegram as an Excel file, exactly as the estimating software exported it.
+- The system parses it, takes the materials section and creates a separate project spreadsheet from a template.
+- After parsing it reconciles the sum of items with the section total and checks the numbering for gaps. If something does not add up, it says so immediately.
+- The project goes into the registry and becomes active: all following documents are booked to it.
 
-### 2. Документ на закупівлю
+### 2. Purchase document
 
-- Приймає PDF або фото: рахунок, накладну, товарний чек, фіскальний чек з АЗС.
-- Розпізнає постачальника, номер, дату і кожну позицію з кількістю та ціною без ПДВ.
-- Перевіряє, чи цей документ уже не проводили. Дубль зупиняється одразу.
-- Оригінал документа зберігається в архів з нормальною назвою: дата, тип, номер, постачальник.
+- Accepts a PDF or a photo: invoice, delivery note, sales receipt, fuel station receipt.
+- Extracts the supplier, number, date and every line with quantity and price excluding VAT.
+- Checks whether this document was already processed. A duplicate stops right there.
+- The original is archived under a readable name: date, type, number, supplier.
 
-### 3. Чотири рівні контролю по кожній позиції
+### 3. Four control levels per line
 
-1. Чи є такий матеріал у кошторисі або в довіднику аналогів.
-2. Чи збігається призначення: марка, клас, сфера застосування.
-3. Чи не перевищено обсяг з урахуванням уже закупленого.
-4. Чи не вища ціна за кошторисну більш ніж на допуск 5%.
+1. Is this material in the estimate or in the list of approved substitutes.
+2. Does the purpose match: grade, class, area of use.
+3. Is the quantity within the limit, counting what was already purchased.
+4. Is the price within the 5% tolerance over the estimate price.
 
-### 4. Рішення керівника
+### 4. Manager decision
 
-- Кожна позиція отримує один з чотирьох статусів: пропустити, очікує підтвердження, ручна перевірка, заблокувати. Поруч стоїть причина з цифрами: скільки треба, який залишок, на скільки відсотків вища ціна.
-- Керівник бачить зведення по документу в Telegram з посиланнями на оригінал і таблицю об'єкта.
-- Спірні позиції приходять окремим повідомленням з кнопками. Одне натискання, і рішення записано в журнал з іменем та часом, а кількість зарахована в облік або ні.
+- Each line gets one of four statuses: pass, awaiting confirmation, manual review, block. Next to it is the reason in numbers: how much is needed, what is left, by what percent the price is higher.
+- The manager sees a summary of the document in Telegram with links to the original and the project spreadsheet.
+- Disputed lines arrive as a separate message with buttons. One tap, and the decision is logged with name and time, and the quantity is booked or not.
 
-## Що враховано, щоб це працювало на реальних документах
+## What makes it work on real documents
 
-- **Одиниці виміру.** Рахунок у мішках, кошторис у тоннах. Балони в штуках, кошторис у літрах. Система сама перераховує, а потім перевіряє результат проти кошторисної ціни. Типову помилку на порядок вона виправляє сама і позначає це в журналі.
-- **Довідник аналогів, який росте сам.** Коли керівник підтверджує заміну матеріалу, вона запам'ятовується. Наступного разу така сама позиція проходить без питань.
-- **Рішення приймається один раз.** Повторне натискання кнопки нічого не змінює.
-- **Система не мовчить, коли щось пішло не так.** Якщо документ не вдалося обробити або кошторис прочитано не повністю, людина отримує зрозуміле повідомлення, а не тишу.
+- **Units of measure.** The invoice is in bags, the estimate in tonnes. Cylinders in pieces, the estimate in litres. The system converts and then validates the result against the estimate price. A typical order-of-magnitude error is corrected automatically and flagged in the log.
+- **A substitutes list that grows on its own.** When the manager confirms a material substitution, it is remembered. Next time the same item passes without a question.
+- **A decision is made once.** Pressing the button again changes nothing.
+- **The system does not stay silent when something goes wrong.** If a document could not be processed or the estimate was read only partially, a person gets a clear message.
 
-> 🔑 **Ключове рішення.** Гроші рахує код, а не мовна модель. Модель читає документ і пропонує, якій позиції кошторису відповідає рядок. Ліміти, залишки, перерахунок одиниць і допуск по ціні рахує детермінована логіка. Модель, яка сама рахує суми, рано чи пізно помиляється, і помиляється на ваших грошах.
+> 🔑 **Key decision.** Code counts the money, not the language model. The model reads the document and suggests which estimate item a line corresponds to. Limits, balances, unit conversion and price tolerance are calculated by deterministic logic. A model that adds up sums on its own will sooner or later get one wrong, and it will be the client's money.
 
-## Масштаб
+## Scale
 
-- Один workflow в n8n, чотири гілки: новий кошторис, документ на закупівлю, підказка, кнопки рішень.
-- Лише два звернення до мовної моделі на весь сценарій: одне на кошторис, одне на документ. Усі позиції документа зіставляються за один раз, тому вартість обробки не росте з кількістю рядків.
-- Окрема таблиця на кожен об'єкт: кошторис, накопичений облік, журнал рахунків, аналоги. Плюс спільний реєстр об'єктів.
+- One n8n workflow, four branches: new estimate, purchase document, help, decision buttons.
+- Only two model calls in the whole scenario: one per estimate, one per document. All lines of a document are matched in a single call, so processing cost does not grow with the number of rows.
+- A separate spreadsheet per project: estimate, cumulative ledger, invoice log, substitutes. Plus a shared project registry.
 
 ---
 
-[До всіх кейсів](../README.md#кейси) · [Написати в Telegram](https://t.me/Ivan_Hladysh)
+[All case studies](../README.md#case-studies) · [Telegram](https://t.me/Ivan_Hladysh)

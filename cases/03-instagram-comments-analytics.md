@@ -1,47 +1,47 @@
-# 💬 Аналітика коментарів Instagram
+# 💬 Instagram comment analytics
 
-`Маркетинг` · Make, Apify, OpenAI, Google Sheets
+`Marketing` · Make, Apify, OpenAI, Google Sheets
 
-> 👥 **Для кого.** Бренди та SMM-команди, у яких під постами багато коментарів і ніхто не читає їх усі.
+> **Who it is for.** Brands and SMM teams with many comments under their posts and nobody reading all of them.
 
-## Проблема
+## Problem
 
-Коментарі читають вибірково. Питання клієнтів лишаються без відповіді, негатив помічають із запізненням, а що аудиторія думає загалом, ніхто не може сказати цифрами.
+Comments are read selectively. Customer questions stay unanswered, negative feedback is noticed late, and nobody can say in numbers what the audience thinks overall.
 
-## Що зроблено
+## What I built
 
-Одна система з трьох сценаріїв, які працюють на спільній таблиці. Перший збирає і розмічає коментарі, другий і третій складають із них звіти.
+One system of three scenarios working on a shared sheet. The first collects and labels comments, the second and third build reports from them.
 
-## Як це працює
+## How it works
 
-### 1. Збір і розмітка коментарів
+### 1. Collecting and labelling comments
 
-- Сценарій забирає коментарі під останніми постами акаунта.
-- Порівнює їх із тим, що вже є в таблиці, і бере тільки нові.
-- Кожен новий коментар отримує тональність: позитивний, негативний або нейтральний.
-- Якщо в коментарі є питання або пропозиція, вони виносяться в окремі колонки.
-- У таблицю лягає рядок: пост, автор, текст, дата, тональність, питання, пропозиція.
+- The scenario pulls comments under the account's latest posts.
+- It compares them with what is already in the sheet and takes only the new ones.
+- Each new comment gets a sentiment: positive, negative or neutral.
+- If a comment contains a question or a suggestion, they go to separate columns.
+- A row is written to the sheet: post, author, text, date, sentiment, question, suggestion.
 
-### 2. Регулярний звіт
+### 2. Regular report
 
-- Кількість коментарів, скільки позитивних і негативних, співвідношення у відсотках.
-- Три найчастіші питання аудиторії та повний список питань.
-- Короткий підсумок: за що хвалять і на що скаржаться.
-- Розподіл коментарів за постами.
+- Number of comments, how many positive and negative, the ratio in percent.
+- The three most frequent audience questions and the full list of questions.
+- A short summary: what people praise and what they complain about.
+- Distribution of comments by post.
 
-### 3. Місячний звіт
+### 3. Monthly report
 
-- Загальний настрій аудиторії за місяць.
-- Розгорнуті підсумки позитиву й негативу.
-- Десять найчастіших питань.
+- Overall audience mood for the month.
+- Extended summaries of positive and negative feedback.
+- The ten most frequent questions.
 
-> 🔑 **Ключове рішення.** Кожен коментар розмічається один раз, у момент збору. Звіти будуються вже з готової таблиці, а не перечитують Instagram заново. Тому звіт формується швидко, а вартість залежить від кількості нових коментарів, а не від розміру всієї історії.
+> 🔑 **Key decision.** Each comment is labelled once, at collection time. Reports are built from the ready sheet and do not re-read Instagram. So a report is generated quickly, and cost depends on the number of new comments, not on the size of the whole history.
 
-## Масштаб
+## Scale
 
-- Три сценарії Make, 18 модулів разом.
-- Одна таблиця з трьома аркушами: коментарі, щоденна аналітика, місячний звіт.
+- Three Make scenarios, 18 modules in total.
+- One spreadsheet with three sheets: comments, daily analytics, monthly report.
 
 ---
 
-[До всіх кейсів](../README.md#кейси) · [Написати в Telegram](https://t.me/Ivan_Hladysh)
+[All case studies](../README.md#case-studies) · [Telegram](https://t.me/Ivan_Hladysh)
