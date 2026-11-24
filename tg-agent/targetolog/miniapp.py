@@ -238,6 +238,7 @@ const insOf=ids=>ids.reduce((a,id)=>add(a,L$.ins[id]||{}),zero());
 const setsOf=cid=>L$.sets.filter(s=>s.campaign_id===cid);
 const adsOf=cid=>L$.ads.filter(a=>a.campaign_id===cid);
 const campIns=cid=>setsOf(cid).reduce((a,s)=>add(a,L$.sins[s.id]||{}),zero());
+const liveAds=f=>L$.ads.filter(a=>f(a)&&/ACTIVE|PENDING|IN_PROCESS|REVIEW/.test(a.effective_status)).length;
 const isRt=s=>(s.targeting?.custom_audiences||[]).length>0;
 const dB=s=>s.daily_budget?+s.daily_budget/100:null;
 
@@ -366,7 +367,7 @@ V.home=()=>{if(!LC.acc)return top()+`<div class="card">Кабінет не на�
 
 /* ───── Реклама: кампанії + креативи ───── */
 const campItem=c=>{const g=GOALS[goalOfCamp(c.id)],i=campIns(c.id),cpr=cost(i,g.res),v=c.effective_status==='ACTIVE'?verd(cpr,g.norm,i.spend):'learn',b=setsOf(c.id).filter(s=>s.effective_status==='ACTIVE').reduce((a,s)=>a+(dB(s)||0),0);
- return `<div class="item" data-camp="${c.id}"><div class="ico i-${v}" style="font-size:19px">${g.ico}</div><div class="tx"><b>${esc(c.name)}</b><small>${c.effective_status==='ACTIVE'?`${usd(b)}/день · ${g.name}`:'на паузі · '+g.name}</small></div><div class="val">${cpr!=null?usd(cpr):usd(i.spend)}<small>${cpr!=null?'за '+RES[g.res][0]:'за 7 дн'}</small></div></div>`};
+ return `<div class="item" data-camp="${c.id}"><div class="ico i-${v}" style="font-size:19px">${g.ico}</div><div class="tx"><b>${esc(c.name)}</b><small>${c.effective_status!=='ACTIVE'?'на паузі · '+g.name:liveAds(a=>a.campaign_id===c.id)?`${usd(b)}/день · ${g.name}`:'чекає креатив · не витрачає'}</small></div><div class="val">${cpr!=null?usd(cpr):usd(i.spend)}<small>${cpr!=null?'за '+RES[g.res][0]:'за 7 дн'}</small></div></div>`};
 const crSt=c=>{if(!c.ads.length)return c.error?['p-bad','помилка']:['p-mid','чернетка'];const st=c.ads.map(x=>L$.ads.find(a=>a.id===x.ad)?.effective_status).filter(Boolean);
  return st.includes('DISAPPROVED')?['p-bad','відхилено Meta']:st.includes('WITH_ISSUES')?['p-bad','є проблема']:st.includes('ACTIVE')?['p-good','у рекламі']:st.some(s=>/REVIEW|PENDING|IN_PROCESS/.test(s))?['p-mid','на перевірці Meta']:st.includes('PAUSED')||st.includes('CAMPAIGN_PAUSED')||st.includes('ADSET_PAUSED')?['p-learn','на паузі']:['p-learn',st[0]?'не показується':'видалено в Meta']};
 const crIns=c=>insOf(c.ads.map(x=>x.ad));
@@ -383,11 +384,11 @@ V.ads=()=>{if(waiting())return top()+waitCard();if(!tok())return top()+setupCard
 const campView=cid=>()=>{const c=L$.camps.find(x=>x.id===cid);if(!c)return'<div class="card">Кампанію не знайдено.</div>';const gk=goalOfCamp(cid),g=GOALS[gk],i=campIns(cid),cpr=cost(i,g.res),sets=setsOf(cid),ads=adsOf(cid),cf=L$.cfg[cid]||{};
  const v=verd(cpr,g.norm,i.spend);
  return `<div class="card hero"><div class="lab">${g.ico} ${g.name}</div><div class="ttl" style="margin:4px 0 10px">${esc(c.name)}</div>
-  <span class="pill p-${c.effective_status==='ACTIVE'?v:'learn'}">${c.effective_status==='ACTIVE'?VL[v]:'На паузі'}</span>${cf.link?`<div class="h2s" style="margin:10px 0 0">Посилання: ${esc(cf.link)}</div>`:''}</div>
+  ${c.effective_status!=='ACTIVE'?'<span class="pill p-learn">На паузі</span>':liveAds(a=>a.campaign_id===cid)?`<span class="pill p-${v}">${VL[v]}</span>`:'<span class="pill p-mid">Чекає креатив</span><div class="h2s" style="margin:8px 0 0">Кампанія увімкнена, але оголошень у ній нема, тому Meta нічого не показує й не списує. Додай креатив нижче.</div>'}${cf.link?`<div class="h2s" style="margin:10px 0 0">Посилання: ${esc(cf.link)}</div>`:''}</div>
  <div class="mg"><div class="m"><span>Витрати за 7 дн ${q('spend')}</span><b>${usd(i.spend)}</b></div><div class="m"><span>${RES[g.res][2][0].toUpperCase()+RES[g.res][2].slice(1)} ${q('res')}</span><b>${fmt(i[g.res])}</b></div>
   <div class="m"><span>${RES[g.res][3]} ${q('cpr')}</span><b>${usd(cpr)}</b></div><div class="m"><span>Норма ${q('norm')}</span><b>${usd(g.norm)}</b></div></div>
  <h2>Групи й бюджет</h2><p class="h2s">Тут бюджет, аудиторія й плейсменти ${q('budget')}</p>
- ${sets.map(s=>{const si=L$.sins[s.id]||zero(),on=s.effective_status==='ACTIVE';return `<div class="item" data-set2="${s.id}"><div class="ico ${on?'i-good':'i-learn'}">${isRt(s)?'↺':on?'₴':'❚❚'}</div><div class="tx"><b>${esc(s.name)}</b><small>${on?'працює':'на паузі'} · ${esc(audSum(parseT(s.targeting)))} · ${usd(si.spend)} → ${rn(si[g.res],g.res)}</small></div><div class="val">${usd(dB(s))}<small>на день</small></div></div>`}).join('')}
+ ${sets.map(s=>{const si=L$.sins[s.id]||zero(),on=s.effective_status==='ACTIVE';return `<div class="item" data-set2="${s.id}"><div class="ico ${on?'i-good':'i-learn'}">${isRt(s)?'↺':on?'₴':'❚❚'}</div><div class="tx"><b>${esc(s.name)}</b><small>${!on?'на паузі':liveAds(a=>a.adset_id===s.id)?'працює':'нема оголошень'} · ${esc(audSum(parseT(s.targeting)))} · ${usd(si.spend)} → ${rn(si[g.res],g.res)}</small></div><div class="val">${usd(dB(s))}<small>на день</small></div></div>`}).join('')}
  ${sets.some(isRt)||!sets.length?'':`<button class="btn ghost" data-rt="${cid}">＋ Ретаргет на тих, хто знає @${esc(LC.ig_name||'тебе')}</button>`}
  ${gk==='lead'?`<h2>Заявки з форми</h2><div id="leads">${leadsHtml(cf.form)}</div>`:''}
  <h2>Оголошення</h2>${ads.map(adRow).join('')||'<div class="card">Тут ще нема оголошень. Додай креатив і запусти його в цю кампанію.</div>'}
