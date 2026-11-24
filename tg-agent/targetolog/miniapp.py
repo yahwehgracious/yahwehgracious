@@ -264,6 +264,12 @@ async function loadSheet(){const u=L$.links.csv;if(!u){L$.sheet=[];return}
 
 /* ───── ШІ (Anthropic або Gemini, ключ у CloudStorage) ───── */
 const aiProv=()=>L$.ai.startsWith('sk-ant')?'anthropic':L$.ai.startsWith('AIza')?'gemini':null;
+async function fileImg(f){if(!f)return null;try{const u=URL.createObjectURL(f);let el;
+ if(f.type.startsWith('video')){el=document.createElement('video');el.muted=true;el.playsInline=true;el.preload='auto';el.src=u;
+  await new Promise((r,j)=>{el.onloadeddata=r;el.onerror=j;setTimeout(j,8000)});el.currentTime=Math.min(1,(el.duration||2)/3);await new Promise(r=>{el.onseeked=r;setTimeout(r,3000)})}
+ else{el=new Image();el.src=u;await el.decode()}
+ const w=el.videoWidth||el.naturalWidth,h=el.videoHeight||el.naturalHeight,k=Math.min(1,1280/Math.max(w,h)),cv=document.createElement('canvas');cv.width=Math.round(w*k);cv.height=Math.round(h*k);
+ cv.getContext('2d').drawImage(el,0,0,cv.width,cv.height);URL.revokeObjectURL(u);return {b64:cv.toDataURL('image/jpeg',.85).split(',')[1],mime:'image/jpeg',video:f.type.startsWith('video')}}catch(e){return null}}
 async function toB64(blob){return await new Promise((r,j)=>{const fr=new FileReader();fr.onload=()=>r(String(fr.result).split(',')[1]);fr.onerror=j;fr.readAsDataURL(blob)})}
 async function ai(system,user,img,heavy){const p=aiProv();if(!p)throw new Error('Додай ключ ШІ в налаштуваннях');
  if(img?.url&&p==='gemini'){try{const b=await (await fetch(img.url)).blob();img={b64:await toB64(b),mime:b.type||'image/jpeg'}}catch(e){img=null}}
@@ -531,7 +537,7 @@ const addView=()=>()=>{const d=draft;return `<h2 style="margin-top:6px">Нови
  <div class="l" style="margin-top:14px">Вертикальний 9:16 для сторіс і Reels (необов'язково)</div>${fileBtn('cf2','Додати вертикальну версію',d.file2)}
  <div class="h2s" style="margin:6px 0 0">Без нього Meta сама обріже основний файл під сторіс. Обидва файли мають бути одного типу: два фото або два відео.</div></div>
  <div class="card"><div class="l">Про що реклама (для ШІ, необов'язково)</div><input id="ctopic" class="in" value="${esc(d.topic||'')}" placeholder="напр. AI-бот для салону: відповідає в Direct 24/7">
- <button class="btn ${L$.ai?'':'ghost'} sm" data-aitext="1">${L$.ai?'✨ ШІ напише 3 варіанти тексту':'✨ Тексти від ШІ: додай ключ у налаштуваннях'}</button></div>
+ <button class="btn ${L$.ai?'':'ghost'} sm" data-aitext="1">${L$.ai?(draft.file?'✨ ШІ напише 3 тексти під цей креатив':'✨ ШІ напише 3 варіанти тексту'):'✨ Тексти від ШІ: додай ключ у налаштуваннях'}</button></div>
  <div class="card"><div class="l">Заголовок (необов'язково)</div><input id="ch" class="in" value="${esc(d.headline||'')}">
  <div class="l" style="margin-top:14px">Текст · варіант A</div><textarea id="ct" class="in" rows="6">${esc(d.text||'')}</textarea>
  <div class="l" style="margin-top:14px">Варіант B (необов'язково)</div><textarea id="ct2" class="in" rows="4" placeholder="Інший хук або інша пропозиція. Meta покаже обидва, а я скажу, який дешевший.">${esc(d.text2||'')}</textarea>
@@ -821,9 +827,11 @@ function acctCtx(){const camps=L$.camps.map(c=>{const g=GOALS[goalOfCamp(c.id)],
 
 /* ───── ШІ-дії ───── */
 async function aiTexts(){keepDraft();const gk=draft.camp?goalOfCamp(draft.camp):(L$.camps[0]?goalOfCamp(L$.camps[0].id):'direct');
- const t=await ai(SYSf(),`${aiCtx()}\n\nНапиши 3 різні варіанти тексту оголошення для Instagram. Мета: ${GOALS[gk].name}.${draft.topic?' Про що реклама: '+draft.topic+'.':''}
+ const img=await fileImg(draft.file);
+ const vis=img?`\n\nДо повідомлення додано ${img.video?'кадр з відео':'картинку'} креативу, під який пишеш. Спершу роздивись: що на ньому, який меседж, текст на зображенні, для кого це. Текст оголошення має продовжувати саме цей креатив: хук перегукується з тим, що людина бачить, не повторює дослівно текст з картинки й не суперечить їй. Якщо креатив не про наш продукт, все одно пиши про продукт, але зв'язуй з тим, що на картинці.`:'';
+ const t=await ai(SYSf(),`${aiCtx()}${vis}\n\nНапиши 3 різні варіанти тексту оголошення для Instagram. Мета: ${GOALS[gk].name}.${draft.topic?' Про що реклама: '+draft.topic+'.':''}
 Кожен варіант з іншим хуком (перше речення) і кутом подачі. 300–600 символів, абзаци, в кінці заклик до дії під мету (${gk==='direct'?'написати в Direct':gk==='lead'?'залишити заявку':'перейти за посиланням'}).
-Формат: {"headline":"заголовок до 40 символів","variants":["текст A","текст B","текст C"]}`);const j=pj(t);
+Формат: {"headline":"заголовок до 40 символів","variants":["текст A","текст B","текст C"]}`,img);const j=pj(t);
  Object.assign(draft,{headline:draft.headline||j.headline||'',text:j.variants[0]||'',text2:j.variants[1]||'',text3:j.variants[2]||''})}
 async function aiReview(c){let img=null;if(c.kind==='image'&&c.thumb)img={url:c.thumb};else if(c.thumb)img={url:c.thumb};
  const t=await ai(SYSf(),`${aiCtx()}\n\nРозбери мій креатив перед запуском${img?' (картинка/кадр додано)':''}. Тип: ${c.kind==='video'?'відео (бачиш лише обкладинку)':'фото'}.
@@ -863,7 +871,7 @@ async function act(d){
  // креативи
  if(d.add!==undefined){if(!tok()){go(keyView());return}draft={camp:d.addcamp||null};go(addView());return}
  if(d.useidea!==undefined){const c=allIdeas()[+d.useidea];draft={headline:c.headline,text:c.primary_text,topic:c.concept};tab='ads';stack=[];go(addView());return}
- if(d.aitext){if(!L$.ai){go(setView0());return}toast('✨ ШІ пише…');try{await aiTexts();okHap();re(addView())}catch(e){err(e)}return}
+ if(d.aitext){if(!L$.ai){go(setView0());return}toast(draft.file?'✨ ШІ дивиться креатив і пише…':'✨ ШІ пише…');try{await aiTexts();okHap();re(addView())}catch(e){err(e)}return}
  if(d.save){keepDraft();const t=[draft.text,draft.text2,draft.text3].map(x=>(x||'').trim()).filter(Boolean);
   if(!draft.file){toast('Вибери фото чи відео');return}if(!t.length){toast('Напиши текст оголошення');return}
   if(draft.file.size>100*1024*1024||draft.file2?.size>100*1024*1024){toast('Файл більший за 100 МБ');return}
