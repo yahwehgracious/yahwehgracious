@@ -96,6 +96,13 @@ def _concepts(got):
                 c = json.loads(c)
             except ValueError:
                 continue
+        if isinstance(c, list) or (isinstance(c, dict) and not c.get("concept") and any(k in c for k in ("concepts", "items", "ideas"))):
+            out += _concepts(c)  # модель загорнула масив ще раз: [{"concepts": [...]}] чи [[...]]
+            continue
+        if isinstance(c, dict) and not c.get("concept"):
+            name = c.get("name") or c.get("title") or c.get("назва") or c.get("концепт")
+            if name:
+                c["concept"] = name
         if isinstance(c, dict) and c.get("concept"):
             c["script"] = [_d(x, "voice") for x in c.get("script") or [] if x] if isinstance(c.get("script"), list) else []
             c["hooks"] = [str(x) for x in c.get("hooks") or []] if isinstance(c.get("hooks"), list) else []
@@ -129,8 +136,10 @@ def make_brief(llm, winners, analyses, pats, cfg, n):
             angles=", ".join(kb["angles"]), formats=", ".join(cfg.get("formats", ["Reels", "статика", "карусель"])), n=k)
         if avoid:
             prompt += f"\n\nВже є концепти (НЕ повторюй ці комбінації persona × angle × format): {avoid}"
-        got = _concepts(llm.json(SYSTEM.format(niche=cfg["niche"]), prompt, max_tokens=12000))
+        raw = llm.json(SYSTEM.format(niche=cfg["niche"]), prompt, max_tokens=16000)
+        got = _concepts(raw)
         if not got:
+            log(f"   сирий бриф: {json.dumps(raw, ensure_ascii=False)[:600]}")
             raise ValueError("модель повернула ідеї не в тому форматі")
         concepts += got[:k]
     return concepts
