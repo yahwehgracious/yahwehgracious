@@ -351,7 +351,7 @@ const clientsCard=()=>{if(!tok())return'';const all=[...L$.marks,...L$.sheet],ca
  <button class="btn ghost" data-mark="1">＋ Відмітити клієнта</button>`};
 V.home=()=>{if(!LC.acc)return top()+`<div class="card">Кабінет не налаштований.</div>`;
  if(!tok())return top()+setupCard()+`<div class="card hero"><div class="lab">Твоя реклама</div><div style="font-size:22px;font-weight:800;margin:6px 0">${L$.loading?'Перевіряю кабінет…':L$.token?'Meta не відповіла':'Кабінет не підключено'}</div><div class="h2s" style="margin:0">${L$.err?esc(L$.err):'Встав ключ Meta, і тут з\'являться витрати, ціна результату й рішення.'}</div></div>`;
- return top('Останні 7 днів')+setupCard()+(L$.ads.length?heroCard():'')+recCard()+clientsCard()+(L$.ads.length?'':`<h2>Поки готуєш креативи</h2><div class="card" data-tab2="ideas" style="cursor:pointer"><b>${D.concepts.length+L$.ideas.length} готових сценаріїв і ${D.winners.length} реклам конкурентів</b><div class="h2s" style="margin:4px 0 0">у вкладці «Ідеї» ›</div></div>`)};
+ return top('Останні 7 днів')+setupCard()+(L$.ads.length?heroCard():'')+recCard()+clientsCard()+(L$.ads.length?'':`<h2>Поки готуєш креативи</h2><div class="card" data-tab2="ideas" style="cursor:pointer"><b>${D.concepts.length+L$.ideas.length} готових сценаріїв і ${CG.length} конкурентів</b><div class="h2s" style="margin:4px 0 0">у вкладці «Ідеї» ›</div></div>`)};
 
 /* ───── Реклама: кампанії + креативи ───── */
 const campItem=c=>{const g=GOALS[goalOfCamp(c.id)],i=campIns(c.id),cpr=cost(i,g.res),v=c.effective_status==='ACTIVE'?verd(cpr,g.norm,i.spend):'learn',b=setsOf(c.id).filter(s=>s.effective_status==='ACTIVE').reduce((a,s)=>a+(dB(s)||0),0);
@@ -652,13 +652,22 @@ function charts(){document.querySelectorAll('svg[data-ser]').forEach(s=>{const R
 let iseg='ideas',bt='sum',aiBusy=false;const maxd=Math.max(...D.winners.map(w=>w.days),1);
 const allIdeas=()=>[...L$.ideas.map(x=>({...x,ai:1})),...D.concepts];
 V.ideas=()=>{const I=allIdeas();return top('Оновлено '+D.updated)+`<h2 style="margin-top:6px">Ідеї для реклами</h2>
-<div class="seg"><button class="${iseg==='ideas'?'on':''}" data-iseg="ideas">Сценарії · ${I.length}</button><button class="${iseg==='comp'?'on':''}" data-iseg="comp">Конкуренти · ${D.winners.length}</button></div>
+<div class="seg"><button class="${iseg==='ideas'?'on':''}" data-iseg="ideas">Сценарії · ${I.length}</button><button class="${iseg==='comp'?'on':''}" data-iseg="comp">Конкуренти · ${CG.length}</button></div>
 ${iseg==='ideas'?`<p class="h2s">Готові сценарії на основі того, що окупається в конкурентів і що працює в тебе. Щопонеділка оновлюються самі.</p>
  <button class="btn ${L$.ai?'':'ghost'}" data-aiideas="1" style="margin:0 0 12px">${aiBusy?'<span class="spin"></span> ШІ думає…':L$.ai?'✨ Згенерувати 3 нові ідеї з урахуванням твоєї статистики':'✨ Свіжі ідеї від ШІ: додай ключ у налаштуваннях'}</button>
  ${I.map((c,i)=>`<div class="item" data-idea="${i}"><div class="ico i-ai">${c.ai?'✨':i+1-L$.ideas.length}</div><div class="tx"><b>${esc(c.concept)}</b><small>${esc((c.persona||'').split('(')[0])} · ${esc((c.format||'').split(',')[0])}</small></div><span class="chev">›</span></div>`).join('')||'<div class="card">Ідеї з\'являться після оновлення.</div>'}`
 :`<p class="h2s">Рекламу, яка не окупається, довго не тримають. Тут оголошення конкурентів, що крутяться 2+ тижні ${q('days')}, і розбір, чому вони працюють.</p>
-${D.winners.map((w,i)=>`<div class="item" data-comp="${i}" style="display:block"><div style="display:flex;justify-content:space-between;gap:10px"><b>${esc(w.page_name)}</b><span style="font-weight:800;white-space:nowrap">${w.days} днів</span></div>
- <div style="color:var(--mut);font-size:13px;margin-top:3px">${esc(String((w.a?._model!=='mock'&&w.a?.hook?.text)||w.text||w.title||'').slice(0,120))}</div><div class="dbar"><i style="width:${Math.max(6,w.days/maxd*100)}%"></i></div></div>`).join('')}`}`};
+${CG.map((g,k)=>{const w=g.ads[0];return `<div class="item" data-cgrp="${k}" style="display:block"><div style="display:flex;justify-content:space-between;gap:10px"><b>${esc(g.name)}</b><span style="font-weight:800;white-space:nowrap">${g.days} днів</span></div>
+ <div style="color:var(--mut);font-size:13px;margin-top:3px">${g.ads.length>1?`${g.ads.length} ${pl(g.ads.length,['оголошення','оголошення','оголошень'])}, що окупаються · `:''}${esc(String(hookOf(w)).slice(0,110))}</div><div class="dbar"><i style="width:${Math.max(6,g.days/maxd*100)}%"></i></div></div>`}).join('')}`}`};
+const hookOf=w=>(w.a?._model!=='mock'&&w.a?.hook?.text)||w.text||w.title||'';
+/* один конкурент = одна картка, навіть якщо в нього кілька сторінок чи оголошень */
+const CG=(()=>{const m=new Map();D.winners.forEach((w,i)=>{const k=String(w.page_name||'').toLowerCase().replace(/\s+-\s+.*$/,'').replace(/\s*(україна|ukraine|ua)\s*$/,'').trim();
+ if(!m.has(k))m.set(k,{name:String(w.page_name).replace(/\s+(Україна|Ukraine)$/,''),ads:[]});m.get(k).ads.push({...w,i})});
+ return [...m.values()].map(g=>({...g,ads:g.ads.sort((a,b)=>b.days-a.days),days:Math.max(...g.ads.map(x=>x.days))})).sort((a,b)=>b.days-a.days)})();
+const grpView=k=>()=>{const g=CG[k];return `<div class="card hero"><div class="lab">Конкурент</div><div style="font-size:21px;font-weight:800;margin:3px 0 6px">${esc(g.name)}</div>
+ <div class="h2s" style="margin:0">${g.ads.length} ${pl(g.ads.length,['оголошення крутиться','оголошення крутяться','оголошень крутяться'])} 2+ тижні, найдовше ${g.days} днів</div></div>
+ ${g.ads.map(w=>`<div class="item" data-comp="${w.i}" style="display:block"><div style="display:flex;justify-content:space-between;gap:10px"><span class="chip">${w.days} днів</span>${w.a?.steal_this&&w.a._model!=='mock'?'<span class="chip">💡 є що взяти</span>':''}</div>
+  <div style="margin-top:8px;font-size:14px">${esc(String(hookOf(w)).slice(0,220))}</div></div>`).join('')}`};
 const compView=i=>()=>{const w=D.winners[i],a=w.a?._model==='mock'?{}:(w.a||{}),h=a.hook||{},o=a.offer||{};
  return `<div class="card hero"><div class="lab">Конкурент</div><div style="font-size:21px;font-weight:800;margin:3px 0 10px">${esc(w.page_name)}</div>
  <span class="chip">крутиться ${w.days} днів</span>${w.variants>1?`<span class="chip">${w.variants} копій</span>`:''}${w.reuse?'<span class="chip">запускали повторно</span>':''}</div>
@@ -795,6 +804,7 @@ async function act(d){
  if(d.iseg){iseg=d.iseg;hap('soft');render();return}
  if(d.idea!==undefined){bt='sum';go(ideaView(+d.idea));return}
  if(d.comp!==undefined){go(compView(+d.comp));return}
+ if(d.cgrp!==undefined){const g=CG[+d.cgrp];go(g.ads.length>1?grpView(+d.cgrp):compView(g.ads[0].i));return}
  if(d.bt){bt=d.bt;hap('soft');render();return}
  if(d.copy!==undefined){const c=allIdeas()[+d.copy];try{await navigator.clipboard.writeText(c.primary_text+'\n\n'+c.headline);toast('Скопійовано ✓')}catch(x){toast('Виділи текст і скопіюй')}return}
  // налаштування
@@ -811,7 +821,7 @@ async function act(d){
  if(d.open){try{tg.openLink(d.open)}catch(x){window.open(d.open)}return}
  if(d.q){const g=G[d.q];sheet(`<h3>${g[0]} <span class="pro">${g[1]}</span></h3><div style="color:#c9c9d6;font-size:15px">${g[2]}</div><button class="btn ghost" data-x="1">Зрозуміло</button>`);return}}
 const keepNc=()=>{if(!nc)return;if($('#nlink'))nc.link=$('#nlink').value.trim();if($('#nname'))nc.name=$('#nname').value.trim()};
-document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-bt],[data-copy],[data-set],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
+document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
  if(!t)return;if(t.dataset.q)e.stopPropagation();try{await act({...t.dataset})}catch(x){err(x)}});
 render();liveLoad();
 }</script></body></html>"""

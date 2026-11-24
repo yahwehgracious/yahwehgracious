@@ -62,7 +62,8 @@
     "target_click": 8
   },
   "scoring": {
-    "min_days": 14
+    "min_days": 14,
+    "top_n": 24
   },
   "source": {
     "kind": "playwright",
