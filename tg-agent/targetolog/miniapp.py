@@ -406,7 +406,7 @@ const campItem=c=>{const g=GOALS[goalOfCamp(c.id)],i=campIns(c.id),cpr=cost(i,g.
 const crSt=c=>{if(!c.ads.length)return c.error?['p-bad','помилка']:['p-mid','чернетка'];const st=c.ads.map(x=>L$.ads.find(a=>a.id===x.ad)?.effective_status).filter(Boolean);
  return st.includes('DISAPPROVED')?['p-bad','відхилено Meta']:st.includes('WITH_ISSUES')?['p-bad','є проблема']:st.includes('ACTIVE')?['p-good','у рекламі']:st.some(s=>/REVIEW|PENDING|IN_PROCESS/.test(s))?['p-mid','на перевірці Meta']:st.includes('PAUSED')||st.includes('CAMPAIGN_PAUSED')||st.includes('ADSET_PAUSED')?['p-learn','на паузі']:['p-learn',st[0]?'не показується':'видалено в Meta']};
 const crIns=c=>insOf(c.ads.map(x=>x.ad));
-const crItem=c=>{const s=crSt(c),i=crIns(c),g=c.camp?GOALS[goalOfCamp(c.camp)]:null;return `<div class="item" data-cr="${c.id}">${c.thumb?`<img class="th" src="${esc(c.thumb)}">`:`<div class="ico i-ai">${c.kind==='video'?'🎬':c.kind==='carousel'?'🎠':'🖼'}</div>`}<div class="tx"><b>${esc(c.headline||c.texts[0].slice(0,50)||'Без назви')}</b><small>${c.ads.length&&g?`${usd(i.spend)} · ${rn(i[g.res],g.res)} за 7 дн`:esc((c.texts[0]||'').slice(0,60))}</small><span class="pill ${s[0]}" style="margin-top:8px;padding:3px 10px;font-size:12.5px">${s[1]}</span></div><span class="chev">›</span></div>`};
+const crItem=c=>{const s=crSt(c),i=crIns(c),g=c.camp?GOALS[goalOfCamp(c.camp)]:null;return `<div class="item" data-cr="${c.id}">${c.thumb?`<img class="th" src="${esc(c.thumb)}">`:`<div class="ico i-ai">${c.kind==='video'?'🎬':c.kind==='carousel'?'🎠':c.kind==='igpost'?'📷':'🖼'}</div>`}<div class="tx"><b>${esc(c.headline||c.texts[0].slice(0,50)||'Без назви')}</b><small>${c.ads.length&&g?`${usd(i.spend)} · ${rn(i[g.res],g.res)} за 7 дн`:esc((c.texts[0]||'').slice(0,60))}</small><span class="pill ${s[0]}" style="margin-top:8px;padding:3px 10px;font-size:12.5px">${s[1]}</span></div><span class="chev">›</span></div>`};
 V.ads=()=>{if(waiting())return top()+waitCard();if(!tok())return top()+setupCard();
  return top('Кампанії й креативи')+`<h2 style="margin-top:6px">Кампанії</h2><p class="h2s">Кожна кампанія має свою мету, бюджет і аудиторію ${q('goal')}</p>
  ${L$.camps.map(campItem).join('')||'<div class="card">Кампаній ще нема. Почни з переписок у Direct: для послуг це найпростіше.</div>'}
@@ -561,11 +561,23 @@ async function makeRt(cid){let aud=await CS.get('rt_audience');
 let draft=null;
 const fileBtn=(id,label,f,multi)=>`<label class="btn ghost" style="margin:6px 0 0;cursor:pointer">${f?'✓ '+esc(f.name):label}<input id="${id}" type="file" accept="image/*,video/*" ${multi?'multiple':''} style="display:none"></label>`;
 const isCar=d=>d?.mode==='car';
+/* пости з Instagram сторінки: просуваємо як є, з лайками й коментарями */
+let IGM=null;
+async function loadIg(){if(!LC.ig){IGM={err:'В налаштуваннях не вказано Instagram-акаунт'};return}
+ try{const j=await gget(`${LC.ig}/media?fields=id,caption,media_type,media_product_type,thumbnail_url,media_url,permalink,timestamp,like_count,comments_count&limit=40`);IGM={items:(j.data||[]).filter(m=>m.media_product_type!=='STORY')}}catch(e){IGM={err:e.message}}}
+const igPick=()=>{if(!IGM){loadIg().finally(()=>re(addView()));return `<div class="card"><span class="spin"></span> Завантажую пости з Instagram…</div>`}
+ if(IGM.err)return `<div class="card"><b>Не вдалось взяти пости</b><div class="h2s" style="margin:6px 0 0">${esc(IGM.err.slice(0,200))}</div><div class="h2s" style="margin:6px 0 0">Ключу Meta потрібен доступ до Instagram-акаунта (дозвіл instagram_basic у системного користувача).</div><button class="btn ghost sm" data-igre="1">Спробувати ще</button></div>`;
+ if(!IGM.items.length)return `<div class="card">На сторінці ще нема постів.</div>`;
+ const sel=draft.ig;
+ return `<div class="card"><div class="l">Обери пост, який просувати</div><div class="h2s" style="margin:4px 0 10px">Реклама піде від імені поста: лайки й коментарі збережуться, текст буде той, що в пості. Для порівняння біля кожного: вподобання й коментарі.</div>
+ <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">${IGM.items.map(m=>{const th=m.media_type==='VIDEO'?m.thumbnail_url:m.media_url;return `<div data-igsel="${m.id}" style="position:relative;aspect-ratio:4/5;border-radius:10px;overflow:hidden;cursor:pointer;outline:${sel===m.id?'3px solid var(--g2)':'1px solid var(--line)'}">${th?`<img src="${esc(th)}" style="width:100%;height:100%;object-fit:cover">`:''}<div style="position:absolute;left:0;right:0;bottom:0;padding:4px 6px;font-size:11px;background:linear-gradient(transparent,rgba(0,0,0,.75))">${m.media_type==='VIDEO'?'🎬 ':m.media_type==='CAROUSEL_ALBUM'?'🎠 ':''}♥ ${fmt(m.like_count||0)} · 💬 ${fmt(m.comments_count||0)}</div></div>`}).join('')}</div>
+ ${sel?(()=>{const m=IGM.items.find(x=>x.id===sel);return `<div class="h2s" style="margin:10px 0 0">${esc((m.caption||'Без підпису').slice(0,300))}${(m.caption||'').length>300?'…':''}</div><button class="btn" data-igsave="1">Просувати цей пост</button>`})():''}</div>`};
 const cardRow=(c,i,n)=>`<div class="item" style="cursor:default;align-items:center">${c.preview?`<img class="th" src="${c.preview}">`:`<div class="ico i-ai">🎬</div>`}
  <div class="tx"><small>Картка ${i+1}</small><input id="cct${i}" class="in" style="margin-top:6px" maxlength="40" value="${esc(c.title||'')}" placeholder="Заголовок картки"></div>
  <div style="display:flex;flex-direction:column;gap:4px">${i?`<button class="btn ghost sm" style="margin:0;padding:4px 10px" data-cup="${i}">↑</button>`:''}${i<n-1?`<button class="btn ghost sm" style="margin:0;padding:4px 10px" data-cdown="${i}">↓</button>`:''}<button class="btn ghost sm" style="margin:0;padding:4px 10px" data-cdel="${i}">✕</button></div></div>`;
 const addView=()=>()=>{const d=draft,car=isCar(d),has=car?d.cards?.length:d.file;return `<h2 style="margin-top:6px">Новий креатив</h2>
- <div class="seg"><button class="${car?'':'on'}" data-crmode="one">Одне фото / відео</button><button class="${car?'on':''}" data-crmode="car">Карусель</button></div>
+ <div class="seg"><button class="${!car&&d.mode!=='ig'?'on':''}" data-crmode="one">Файл</button><button class="${car?'on':''}" data-crmode="car">Карусель</button><button class="${d.mode==='ig'?'on':''}" data-crmode="ig">Пост з Instagram</button></div>
+ ${d.mode==='ig'?igPick():`
  <div class="card">${car?`<div class="l">Картки · 2–10, усі однієї пропорції (1:1 або 4:5)</div>
  ${(d.cards||[]).map((c,i)=>cardRow(c,i,d.cards.length)).join('')}
  ${(d.cards||[]).length<10?fileBtn('ccar',(d.cards||[]).length?'+ Додати картки':'Вибрати фото чи відео',null,true):''}
@@ -580,7 +592,7 @@ const addView=()=>()=>{const d=draft,car=isCar(d),has=car?d.cards?.length:d.file
  <div class="l" style="margin-top:14px">Текст · варіант A</div><textarea id="ct" class="in" rows="6">${esc(d.text||'')}</textarea>
  <div class="l" style="margin-top:14px">Варіант B (необов'язково)</div><textarea id="ct2" class="in" rows="4" placeholder="Інший хук або інша пропозиція. Meta покаже обидва, а я скажу, який дешевший.">${esc(d.text2||'')}</textarea>
  <div class="l" style="margin-top:14px">Варіант C (необов'язково)</div><textarea id="ct3" class="in" rows="4">${esc(d.text3||'')}</textarea></div>
- <button class="btn" data-save="1">Зберегти креатив</button><p class="h2s" style="margin-top:10px">Після збереження ШІ може розібрати креатив, а ти обираєш, у яку кампанію запустити.</p>`};
+ <button class="btn" data-save="1">Зберегти креатив</button><p class="h2s" style="margin-top:10px">Після збереження ШІ може розібрати креатив, а ти обираєш, у яку кампанію запустити.</p>`}`};
 const keepDraft=()=>{if(!$('#ct'))return;Object.assign(draft,{topic:$('#ctopic').value,headline:$('#ch').value,text:$('#ct').value,text2:$('#ct2').value,text3:$('#ct3').value});(draft.cards||[]).forEach((c,i)=>{const el=$('#cct'+i);if(el)c.title=el.value})};
 document.addEventListener('change',e=>{if(!['cf','cf2','ccar'].includes(e.target.id))return;const fs=[...e.target.files];if(!fs.length)return;keepDraft();
  if(e.target.id==='ccar'){draft.cards=draft.cards||[];for(const f of fs){if(draft.cards.length>=10){toast('Максимум 10 карток');break}draft.cards.push({file:f,preview:f.type.startsWith('image')?URL.createObjectURL(f):'',title:''})}}
@@ -593,6 +605,7 @@ async function videoReady(id){for(let i=0;i<40;i++){const s=await gget(`${id}?fi
 function ctaFor(gk,cf){if(gk==='direct')return {type:'INSTAGRAM_MESSAGE',value:{app_destination:'INSTAGRAM_DIRECT'}};if(gk==='lead')return {type:'SIGN_UP',value:{lead_gen_form_id:cf.form}};return {type:'LEARN_MORE',value:{link:cf.link}}}
 async function crSpec(c,text,cid,two){const gk=goalOfCamp(cid),cf=L$.cfg[cid]||{},cta=ctaFor(gk,cf),link=gk==='direct'?(LC.link||'https://www.instagram.com/'):gk==='lead'?'https://fb.me/':cf.link;
  const oss={page_id:LC.page,...(LC.ig?{instagram_user_id:LC.ig}:{})};
+ if(c.kind==='igpost')return {object_id:LC.page,instagram_user_id:LC.ig,source_instagram_media_id:c.ref,...(cta?{call_to_action:cta}:{})};
  if(c.kind==='carousel'){const vt={};for(const x of c.cards)if(x.k==='v')vt[x.r]=await videoReady(x.r);
   oss.link_data={message:text,link,multi_share_optimized:false,multi_share_end_card:false,call_to_action:cta,
    child_attachments:c.cards.map(x=>({link,name:x.t||c.headline||'',call_to_action:cta,...(x.k==='i'?{image_hash:x.r}:{video_id:x.r,picture:vt[x.r]})}))};
@@ -609,9 +622,10 @@ async function crSpec(c,text,cid,two){const gk=goalOfCamp(cid),cf=L$.cfg[cid]||{
  return {object_story_spec:oss}}
 const LET='ABC';
 async function mkCreative(c,k,cid){const name=`ШІ · креатив ${c.id}${c.texts.length>1?'-'+LET[k]:''}`;
+ if(c.kind==='igpost'){const sp=await crSpec(c,'',cid,false);try{return (await gpost(`${ACT()}/adcreatives`,{name,...J(sp)})).id}catch(e){if(!sp.call_to_action)throw e;delete sp.call_to_action;c.note='Meta не прийняла кнопку для цього поста, тому запущено без неї: '+e.message.slice(0,120);return (await gpost(`${ACT()}/adcreatives`,{name,...J(sp)})).id}}
  if(c.ref2&&!c.single)try{return (await gpost(`${ACT()}/adcreatives`,{name,...J(await crSpec(c,c.texts[k],cid,true))})).id}catch(e){c.single=true;c.note='Meta не прийняла два формати разом, тому запущено з основним файлом: '+e.message.slice(0,120)}
  return (await gpost(`${ACT()}/adcreatives`,{name,...J(await crSpec(c,c.texts[k],cid,false))})).id}
-const J=o=>Object.fromEntries(Object.entries(o).map(([k,v])=>[k,JSON.stringify(v)]));
+const J=o=>Object.fromEntries(Object.entries(o).map(([k,v])=>[k,typeof v==='string'?v:JSON.stringify(v)]));
 async function launchCr(c,cid){const sets=setsOf(cid);if(!sets.length)throw new Error('У кампанії нема груп');
  for(let k=0;k<c.texts.length;k++){const crid=await mkCreative(c,k,cid);
   for(const s of sets){const ad=(await gpost(`${ACT()}/ads`,{name:`#${c.id}${c.texts.length>1?'-'+LET[k]:''} ${c.headline||c.texts[k].slice(0,40)}${isRt(s)?' · ретаргет':''}`,adset_id:s.id,creative:JSON.stringify({creative_id:crid}),status:'ACTIVE'})).id;
@@ -647,9 +661,10 @@ const crView=id=>()=>{const c=L$.crs.find(x=>x.id==id);if(!c)return'';const s=cr
  ${rj.length?rejCard([...new Set(rj.flatMap(reasons))],null):''}
  ${c.ads.length&&g?`<div class="mg"><div class="m"><span>Витрати ${q('spend')}</span><b>${usd(i.spend)}</b></div><div class="m"><span>${RES[g.res][2][0].toUpperCase()+RES[g.res][2].slice(1)} ${q('res')}</span><b>${fmt(i[g.res])}</b></div><div class="m"><span>${RES[g.res][3]} ${q('cpr')}</span><b>${usd(cost(i,g.res))}</b></div><div class="m"><span>Клікабельність ${q('ctr')}</span><b>${i.impr?(i.clicks/i.impr*100).toFixed(2)+'%':'—'}</b></div></div>`:''}
  ${c.kind==='carousel'&&c.ads.length?cardsBlock(c):''}
+ ${c.kind==='igpost'&&c.link?`<button class="btn ghost sm" data-open="${esc(c.link)}">Відкрити пост в Instagram ↗</button>`:''}
  <h2>${vs.length>1?'Варіанти тексту':'Текст'}</h2>${vs.map(v=>`<div class="card">${vs.length>1?`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>Варіант ${LET[v.k]}</b>${best&&best.k===v.k?'<span class="pill p-good">найдешевший</span>':v.ids.length&&!v.act?'<span class="pill p-learn">не показується</span>':''}</div>`:''}
   <div class="copy" style="margin:0">${esc(v.t)}</div>${v.ids.length&&g?`<div class="src">${usd(v.x.spend)} · ${rn(v.x[g.res],g.res)}${v.cpr!=null?' · '+usd(v.cpr)+' за '+RES[g.res][0]:''}</div>`:''}
-  <div class="row2"><button class="btn ghost sm" data-edit="${c.id}:${v.k}">✎ Змінити текст</button>${v.act&&vs.length>1?`<button class="btn ghost sm" data-vpause="${c.id}:${v.k}" style="color:var(--bad)">Вимкнути варіант</button>`:'<span></span>'}</div></div>`).join('')}
+  <div class="row2">${c.kind==='igpost'?`<span class="h2s" style="margin:0">Текст поста, змінюється лише в Instagram</span>`:`<button class="btn ghost sm" data-edit="${c.id}:${v.k}">✎ Змінити текст</button>`}${v.act&&vs.length>1?`<button class="btn ghost sm" data-vpause="${c.id}:${v.k}" style="color:var(--bad)">Вимкнути варіант</button>`:'<span></span>'}</div></div>`).join('')}
  ${c.review?reviewHtml(c.review):`<button class="btn ghost" data-review="${c.id}">${L$.ai?'🧐 ШІ розбере креатив перед запуском':'🧐 Розбір ШІ: додай ключ у налаштуваннях'}</button>`}
  ${c.error?`<div class="card"><div class="l" style="color:var(--bad)">Що пішло не так</div>${esc(c.error)}</div>`:''}
  ${!c.ads.length?`<button class="btn good" data-launch="${c.id}">🚀 Запустити в рекламу</button><button class="btn ghost" data-delcr="${c.id}">Видалити чернетку</button>`:
@@ -986,6 +1001,11 @@ async function act(d){
  if(d.add!==undefined){if(!tok()){go(keyView());return}draft={camp:d.addcamp||null};go(addView());return}
  if(d.useidea!==undefined){const c=allIdeas()[+d.useidea];draft={headline:c.headline,text:c.primary_text,topic:c.concept};tab='ads';stack=[];go(addView());return}
  if(d.crmode){keepDraft();draft.mode=d.crmode;re(addView());return}
+ if(d.igre){IGM=null;re(addView());return}
+ if(d.igsel){draft.ig=d.igsel;re(addView());return}
+ if(d.igsave){const m=IGM.items.find(x=>x.id===draft.ig);if(!m)return;const id=(L$.crs.reduce((a,c)=>Math.max(a,c.id),0))+1;
+  const c=normCr({id,kind:'igpost',ref:m.id,thumb:(m.media_type==='VIDEO'?m.thumbnail_url:m.media_url)||'',headline:'',texts:[(m.caption||'').slice(0,900)||'Пост з Instagram'],link:m.permalink,created:Date.now(),ads:[]});
+  L$.crs.push(c);await saveCr(c);await saveIdx();const camp=draft.camp;draft=null;stack=[];tab='ads';toast('✓ Пост додано в креативи');go(crView(id));if(camp)launchFor=camp;return}
  if(d.cup||d.cdown||d.cdel){keepDraft();const cs=draft.cards,i=+(d.cup||d.cdown||d.cdel);if(d.cdel)cs.splice(i,1);else{const j=d.cup?i-1:i+1;[cs[i],cs[j]]=[cs[j],cs[i]]}re(addView());return}
  if(d.aitext){if(!L$.ai){go(setView0());return}toast(draft.file?'✨ ШІ дивиться креатив і пише…':'✨ ШІ пише…');try{await aiTexts();okHap();re(addView())}catch(e){err(e)}return}
  if(d.save){keepDraft();const t=[draft.text,draft.text2,draft.text3].map(x=>(x||'').trim()).filter(Boolean);
@@ -1079,7 +1099,7 @@ async function act(d){
  if(d.open){try{tg.openLink(d.open)}catch(x){window.open(d.open)}return}
  if(d.q){const g=G[d.q];sheet(`<h3>${g[0]} <span class="pro">${g[1]}</span></h3><div style="color:#c9c9d6;font-size:15px">${g[2]}</div><button class="btn ghost" data-x="1">Зрозуміло</button>`);return}}
 const keepNc=()=>{if(!nc)return;if($('#nbudin'))nc.budget=Math.round(+$('#nbudin').value.replace(/\D/g,''))||nc.budget;if($('#nlink'))nc.link=$('#nlink').value.trim();if($('#nname'))nc.name=$('#nname').value.trim()};
-document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-crmode],[data-cup],[data-cdown],[data-cdel],[data-compset],[data-rules],[data-rsave],[data-rdef],[data-nhist],[data-napply],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rgo],[data-rq],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-cadd],[data-ghrun],[data-csave],[data-ghsave],[data-ghdel],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
+document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-crmode],[data-cup],[data-cdown],[data-cdel],[data-compset],[data-rules],[data-rsave],[data-rdef],[data-nhist],[data-napply],[data-igre],[data-igsel],[data-igsave],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rgo],[data-rq],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-cadd],[data-ghrun],[data-csave],[data-ghsave],[data-ghdel],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
  if(!t)return;if(t.dataset.q)e.stopPropagation();try{await act({...t.dataset})}catch(x){err(x)}});
 render();liveLoad();
 /* Telegram кешує сторінку: якщо на GitHub уже новіша збірка — перезавантажуємось */
