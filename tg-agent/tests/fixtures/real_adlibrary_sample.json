@@ -1,0 +1,114 @@
+[
+ {
+  "ad_archive_id": "2275731086544890",
+  "page_id": "231181423679551",
+  "page_name": "Інтергал-Буд",
+  "is_active": true,
+  "start_date": 1793084400,
+  "end_date": 1795334400,
+  "collation_count": 1,
+  "collation_id": "1529482125653946",
+  "publisher_platform": [
+   "FACEBOOK",
+   "INSTAGRAM"
+  ],
+  "total_active_time": null,
+  "snapshot": {
+   "display_format": "DCO",
+   "body": {
+    "text": "ЖК «Нові Сирецькі Сади» кращі умови на старті \n\nУ ЖК «Нові Сирецькі Сади» відкрито продаж квартир у будинках №11 та №12."
+   },
+   "title": "ЖК «Нові Сирецькі Сади» кращі умови на старті",
+   "cta_text": "Подать заявку",
+   "link_url": "https://example.com",
+   "videos": [],
+   "images": [],
+   "cards": [
+    {
+     "body": "ЖК «Нові Сирецькі Сади» кращі умови на старті",
+     "title": "ЖК «Нові Сирецькі Сади»",
+     "cta_text": "Apply Now",
+     "video_hd_url": "https://video.example/c.mp4",
+     "video_preview_image_url": "https://img.example/cp.jpg",
+     "original_image_url": null
+    },
+    {
+     "body": "ЖК «Нові Сирецькі Сади» кращі умови на старті",
+     "title": "ЖК",
+     "cta_text": "Apply Now",
+     "video_hd_url": null,
+     "video_preview_image_url": null,
+     "original_image_url": "https://img.example/c.jpg"
+    }
+   ]
+  },
+  "_rank": 0,
+  "_rank_total": 200
+ },
+ {
+  "ad_archive_id": "1111",
+  "page_id": "231181423679551",
+  "page_name": "Інтергал-Буд",
+  "is_active": true,
+  "start_date": 1784703600,
+  "end_date": 1795420800,
+  "collation_count": 3,
+  "collation_id": "c2",
+  "publisher_platform": [
+   "FACEBOOK",
+   "INSTAGRAM"
+  ],
+  "snapshot": {
+   "display_format": "DCO",
+   "body": {
+    "text": "{{product.brand}}"
+   },
+   "title": "{{product.name}}",
+   "cta_text": "",
+   "link_url": "https://example.com",
+   "videos": [],
+   "images": [],
+   "cards": [
+    {
+     "body": "{{product.brand}}",
+     "original_image_url": "https://img.example/c.jpg"
+    }
+   ]
+  },
+  "_rank": 2,
+  "_rank_total": 200
+ },
+ {
+  "ad_archive_id": "2222",
+  "page_id": "231181423679551",
+  "page_name": "Інтергал-Буд",
+  "is_active": true,
+  "start_date": 1791788400,
+  "end_date": 1795420800,
+  "collation_count": 2,
+  "collation_id": "c3",
+  "publisher_platform": [
+   "FACEBOOK",
+   "INSTAGRAM"
+  ],
+  "snapshot": {
+   "display_format": "VIDEO",
+   "body": {
+    "text": "🏡 Власна квартира на Оболоні за програмою єОселя? Обирайте ЖК Polar Park"
+   },
+   "title": "Квартири в ЖК Polar Park",
+   "cta_text": "Подать заявку",
+   "link_url": "https://example.com",
+   "videos": [
+    {
+     "video_hd_url": "https://video.example/v.mp4",
+     "video_preview_image_url": "https://img.example/p.jpg"
+    }
+   ],
+   "images": [],
+   "cards": []
+  },
+  "_rank": 150,
+  "_rank_total": 200
+ }
+]

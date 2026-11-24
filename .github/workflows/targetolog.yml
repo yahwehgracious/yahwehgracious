@@ -1,0 +1,55 @@
+# ШІ-таргетолог: щоранку звіт у Telegram, щопонеділка конкуренти й ідеї → оновлення Mini App.
+# Секрети (Settings → Secrets and variables → Actions): META_ACCESS_TOKEN, TELEGRAM_BOT_TOKEN,
+# ANTHROPIC_API_KEY та/або GEMINI_API_KEY (без них ідеї не оновлюються, застосунок лишає попередні).
+name: targetolog
+
+on:
+  schedule:
+    - cron: "47 5 * * *"   # щодня 07:47 за Києвом (зимовий час)
+    - cron: "13 4 * * 1"   # щопонеділка 06:13 за Києвом
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "daily або update"
+        default: daily
+
+permissions:
+  contents: write
+
+concurrency: targetolog
+
+jobs:
+  daily:
+    if: github.event.schedule == '47 5 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'daily')
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: tg-agent } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python -m targetolog daily ivan
+        env:
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+
+  update:
+    if: github.event.schedule == '13 4 * * 1' || (github.event_name == 'workflow_dispatch' && inputs.job == 'update')
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: tg-agent } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt && python -m playwright install --with-deps chromium
+      - run: python -m targetolog update ivan --out ../tg-app/index.html --notify
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: commit
+        run: |
+          git config user.name "targetolog-bot"
+          git config user.email "targetolog-bot@users.noreply.github.com"
+          git add ../tg-app/index.html clients/ivan/data.sqlite
+          git diff --cached --quiet || git commit -m "ШІ-таргетолог: конкуренти й ідеї $(date +%d.%m.%Y)"
+          git push
