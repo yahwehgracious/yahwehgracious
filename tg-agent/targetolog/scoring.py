@@ -86,6 +86,10 @@ def score_creatives(db, now, cfg):
     if rx:  # пошук за словами тягне чуже («AI-лампа», «автоматизація лінії»): лишаємо тільки свою нішу
         r = re.compile(rx, re.I)
         out = [c for c in out if r.search(f"{c['text'] or ''} {c['title'] or ''}")]
+    xr = cfg.get("exclude_rx")
+    if xr:  # курси, інтенсиви, школи: продають навчання, а не послугу — це не конкуренти
+        r = re.compile(xr, re.I)
+        out = [c for c in out if not r.search(f"{c['page_name'] or ''} {c['text'] or ''} {c['title'] or ''}")]
     winners = [c for c in out if c["days"] >= min_days]
     per_page, top, seen = defaultdict(int), [], set()
     for c in winners:

@@ -236,13 +236,20 @@ const dB=s=>s.daily_budget?+s.daily_budget/100:null;
 function csvRows(t){const rows=[];let row=[],f='',q=false;for(let i=0;i<t.length;i++){const c=t[i];
  if(q){if(c==='"'&&t[i+1]==='"'){f+='"';i++}else if(c==='"')q=false;else f+=c}else if(c==='"')q=true;else if(c===','){row.push(f);f=''}else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;row.push(f);rows.push(row);row=[];f=''}else f+=c}
  if(f||row.length){row.push(f);rows.push(row)}return rows}
+/* будь-яке посилання на таблицю → CSV: «Опублікувати як CSV» або звичайне посилання з доступом «усі, хто має посилання» */
+const csvUrl=u=>{if(/output=csv|format=csv|out:csv/.test(u))return u;const m=u.match(/spreadsheets\/d\/(e\/)?([\w-]{20,})/);if(!m)return u;
+ if(m[1])return `https://docs.google.com/spreadsheets/d/e/${m[2]}/pub?output=csv`;const g=u.match(/[#&?]gid=(\d+)/);return `https://docs.google.com/spreadsheets/d/${m[2]}/gviz/tq?tqx=out:csv${g?'&gid='+g[1]:''}`};
 async function loadSheet(){const u=L$.links.csv;if(!u){L$.sheet=[];return}
- try{const t=await (await fetch(u)).text();const rows=csvRows(t).filter(r=>r.some(x=>x.trim()));const h=rows.shift().map(x=>x.toLowerCase());
+ try{let r;try{r=await fetch(csvUrl(u))}catch(e){throw new Error('Google не віддає таблицю: відкрий доступ «Усі, хто має посилання → Читач»')}
+  if(!r.ok)throw new Error(`Google відповів ${r.status}: відкрий доступ «Усі, хто має посилання → Читач»`);const t=await r.text();
+  if(/^\s*</.test(t))throw new Error('Замість таблиці прийшла сторінка входу: відкрий доступ «Усі, хто має посилання → Читач»');
+  const rows=csvRows(t).filter(r=>r.some(x=>x.trim()));if(!rows.length){L$.sheet=[];L$.sheetErr=null;return}const h=rows.shift().map(x=>x.toLowerCase());
+  if(!h.some(x=>/статус|status/.test(x)))throw new Error('У таблиці нема колонки «Статус»');
   const ix=re=>h.findIndex(x=>re.test(x));const iD=ix(/дат|date/),iT=ix(/статус|тип|етап|status|stage/),iS=ix(/сум|оплат.*грн|amount|sum|₴/),iA=ix(/реклам|креатив|ad/);
   const pd=s=>{s=(s||'').trim();let m=s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{2,4})/);if(m)return new Date(+(m[3].length===2?'20'+m[3]:m[3]),m[2]-1,+m[1]).getTime();const v=Date.parse(s);return isNaN(v)?Date.now():v};
   L$.sheet=rows.map(r=>{const st=(r[iT]||'').toLowerCase();const s=+(String(r[iS]||'').replace(/[^\d.,]/g,'').replace(',','.'))||0;
    const t=/оплат|продаж|клієнт|paid|won|угод/.test(st)||(iT<0&&s>0)?'paid':/дзвін|дзвон|зустр|call|meet/.test(st)?'call':null;return t?{t,s,d:pd(r[iD]),ad:r[iA]||'',src:'sheet'}:null}).filter(x=>x&&Date.now()-x.d<92*DAY);L$.sheetErr=null}
- catch(e){L$.sheetErr='Не вдалося прочитати таблицю: перевір, що вона опублікована як CSV';L$.sheet=[]}
+ catch(e){L$.sheetErr=e.message;L$.sheet=[]}
  if(tab==='home'&&!stack.length)render()}
 
 /* ───── ШІ (Anthropic або Gemini, ключ у CloudStorage) ───── */
@@ -678,8 +685,8 @@ const setView0=()=>()=>`<h2 style="margin-top:6px">Налаштування</h2>
  <div class="card"><div class="l">ШІ для текстів, розборів та ідей</div><b>${L$.ai?'✓ '+(aiProv()==='anthropic'?'Claude (Anthropic)':aiProv()==='gemini'?'Gemini (Google)':'Невідомий ключ'):'Не підключено'}</b>
   <div class="h2s" style="margin:4px 0 0">Ключ Anthropic (sk-ant-…) або Gemini (AIza…). Зберігається тільки в твоєму Telegram. Один розбір чи 3 тексти коштують кілька центів.</div>
   <input id="aik" class="in mono" placeholder="${L$.ai?esc(mask(L$.ai)):'sk-ant-… або AIza…'}"><div class="row2"><button class="btn sm" data-aisave="1">Зберегти</button>${L$.ai?'<button class="btn ghost sm" data-aidel="1">Видалити</button>':'<span></span>'}</div></div>
- <div class="card"><div class="l">Таблиця клієнтів</div><div class="h2s" style="margin:0 0 6px">Google Таблиця з колонками «Дата», «Статус» (дзвінок / оплата), «Сума». Файл → Поділитися → Опублікувати в інтернеті → аркуш → CSV, і встав посилання сюди.</div>
-  <input id="lcsv" class="in" value="${esc(L$.links.csv||'')}" placeholder="https://docs.google.com/…/pub?output=csv">
+ <div class="card"><div class="l">Таблиця клієнтів</div><div class="h2s" style="margin:0 0 6px">Google Таблиця з колонками «Дата», «Статус» (Дзвінок / Оплата), «Сума». У таблиці: Поділитися → Загальний доступ → «Усі, хто має посилання» → Читач. Скопіюй посилання й встав сюди.</div>
+  <input id="lcsv" class="in" value="${esc(L$.links.csv||'')}" placeholder="https://docs.google.com/spreadsheets/d/…">
   ${L$.sheet.length?`<div class="h2s" style="margin:6px 0 0">✓ Прочитано ${L$.sheet.length} записів за 90 днів</div>`:''}</div>
  <div class="card"><div class="l">Посилання за замовчуванням</div>
   <div class="h2s" style="margin:6px 0 0">Telegram для кампаній «Переходи в Telegram»</div><input id="ltg" class="in" value="${esc(L$.links.tg||'')}" placeholder="https://t.me/…">
