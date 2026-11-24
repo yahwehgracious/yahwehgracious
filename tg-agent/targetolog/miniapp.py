@@ -146,7 +146,7 @@ const G={
  cpm:['Ціна 1000 показів','CPM','Скільки коштує показати рекламу тисячі людей. Росте, коли аудиторія вузька або конкуренція велика.'],
  days:['Днів у показі','Days active','Скільки днів конкурент не вимикає рекламу. Збиткову рекламу довго не тримають, тож довгий показ означає, що вона окупається.'],
  budget:['Бюджет','Daily budget','Скільки Meta може витратити на день. За місяць виходить приблизно денний бюджет × 30. В окремий день Meta може витратити трохи більше, але за тиждень вкладеться в середнє.'],
- learn:['Навчання','Learning phase','Перші 2–3 дні після запуску чи великої зміни Meta шукає, кому показувати рекламу. Цифри в цей час стрибають, тому рішень не приймаємо.'],
+ learn:['Навчання','Learning phase','Після запуску чи великої зміни Meta шукає, кому показувати рекламу, і цифри стрибають. Meta вважає навчання завершеним після ~50 результатів за тиждень; на малих бюджетах це недосяжно, тому я чекаю не днів, а грошей: дві норми ціни результату або 3 результати, мінімум 2 доби, максимум тиждень.'],
  place:['Плейсменти','Placements','Де саме показується реклама: стрічка Instagram, сторіс, Reels, стрічка Facebook. «Автоматично» (Advantage+ placements) зазвичай дешевше.'],
  goal:['Мета кампанії','Objective','Що Meta має приносити: переписки в Direct, заявки через форму всередині Instagram/Facebook або переходи за посиланням. Meta оптимізує показ саме під цю дію.'],
  rt:['Ретаргет','Retargeting','Показ реклами людям, які вже знають тебе: заходили в профіль, писали, реагували на пости. Зазвичай пишуть охочіше й дешевше.']};
@@ -194,6 +194,12 @@ const goalOfSet=s=>{if(!s)return'direct';const og=s.optimization_goal;if(og==='L
 const goalOfCamp=cid=>L$.cfg[cid]?.goal||goalOfSet(L$.sets.find(s=>s.campaign_id===cid));
 const goalOfAd=a=>goalOfSet(L$.sets.find(s=>s.id===a.adset_id));
 const cost=(i,r)=>i&&i[r]?i.spend/i[r]:null;
+/* Коли вже можна судити: залежить від грошей, а не від днів.
+   Оголошення: витратило 2 норми або має 3 результати (мінімум 48 год), або спалило 3 норми за першу добу, або минув тиждень.
+   Бюджет: після зміни група має витратити 3 норми за новим бюджетом, але не менше 2 і не більше 7 днів. */
+const adReady=(ageH,spend,res,T)=>ageH>=168||(ageH>=48&&(spend>=2*T||res>=3))||(ageH>=24&&spend>=3*T);
+const scaleWaitD=(T,b)=>Math.min(7,Math.max(2,Math.ceil(3*T/Math.max(b,1))));
+const adWaitD=(T,b)=>Math.min(7,Math.max(2,Math.ceil(2*T/Math.max(b,1))));
 const verd=(c,T,spend)=>c==null?(spend>=T*2?'bad':'learn'):c<=T?'good':c<=T*1.5?'mid':'bad';
 const VL={good:'У нормі',mid:'Трохи дорожче норми',bad:'Дорого',learn:'Збирає дані'};
 const alive=x=>!/DELETED|ARCHIVED/.test(x.effective_status||'');
@@ -221,7 +227,7 @@ async function liveLoad(){if(!LC.acc){render();return}
   const [acc,cm,as,ads,ai,si,s90]=await Promise.all([
    gget(`${A}?fields=name,currency,account_status,disable_reason,amount_spent,funding_source_details`),
    gget(`${A}/campaigns?fields=id,name,objective,effective_status,created_time&limit=50`),
-   gget(`${A}/adsets?fields=id,name,campaign_id,daily_budget,effective_status,optimization_goal,destination_type,targeting,created_time&limit=100`),
+   gget(`${A}/adsets?fields=id,name,campaign_id,daily_budget,effective_status,optimization_goal,destination_type,targeting,created_time,updated_time&limit=100`),
    gget(`${A}/ads?fields=id,name,adset_id,campaign_id,effective_status,created_time,creative{id,thumbnail_url,body},ad_review_feedback,issues_info&limit=200`),
    gget(`${A}/insights?level=ad&date_preset=last_7d&fields=ad_id,${INS}&limit=300`),
    gget(`${A}/insights?level=adset&date_preset=last_7d&fields=adset_id,${INS}&limit=100`),
@@ -331,14 +337,14 @@ function setupCard(){if(!LC.acc)return'';const st=steps();if(st.every(x=>x[1]))r
 /* ───── Рішення ШІ (правила таргетолога над живими даними) ───── */
 function recs(){if(!tok())return[];const out=[],today=new Date().toISOString().slice(0,10);let dis={};try{dis=JSON.parse(ls.get('dis_'+today)||'{}')}catch(e){}
  const active=L$.ads.filter(a=>a.effective_status==='ACTIVE');const perSet={};for(const a of active)perSet[a.adset_id]=(perSet[a.adset_id]||0)+1;
- for(const a of active){const g=GOALS[goalOfAd(a)],T=g.norm,r=g.res,i=L$.ins[a.id]||zero();if((Date.now()-new Date(a.created_time))/36e5<72)continue;
+ for(const a of active){const g=GOALS[goalOfAd(a)],T=g.norm,r=g.res,i=L$.ins[a.id]||zero();if(!adReady((Date.now()-new Date(a.created_time))/36e5,i.spend,i[r]||0,T))continue;
   const c=cost(i,r),can=perSet[a.adset_id]>1;
   if(!i[r]&&i.spend>=2*T)out.push(can?{id:'p'+a.id,kind:'pause',ad:a.id,title:`Вимкнути «${a.name}»`,why:`${usd(i.spend)} за тиждень і 0 ${RES[r][2]}. Норма ${usd(T)} за ${RES[r][0]}.`,btn:'Вимкнути'}:
    {id:'r'+a.id,kind:'new',title:`Заміни «${a.name}»`,why:`${usd(i.spend)} і жодного результату, але це єдине оголошення в групі: вимкнеш, і реклама зупиниться. Додай новий креатив, потім вимкнемо цей.`,btn:'Додати креатив'});
   else if(i[r]>=3&&c>1.5*T&&can)out.push({id:'p'+a.id,kind:'pause',ad:a.id,title:`Вимкнути «${a.name}»`,why:`${RES[r][3]} ${usd(c)}, у ${(c/T).toFixed(1)} раза дорожче норми. Гроші краще віддати кращим оголошенням.`,btn:'Вимкнути'});
   if(i.freq>3.2)out.push({id:'f'+a.id,kind:'new',title:`Люди втомились від «${a.name}»`,why:`Одна людина бачила її вже ${i.freq.toFixed(1)} раза. Реакція падатиме, пора новий креатив.`,btn:'Додати креатив'})}
  for(const s of L$.sets.filter(x=>x.effective_status==='ACTIVE')){const g=GOALS[goalOfSet(s)],si=L$.sins[s.id]||zero(),c=cost(si,g.res),b=dB(s),last=+ls.get('bch_'+s.id)||0;
-  if(b&&si[g.res]>=5&&c<=g.norm&&Date.now()-last>3*DAY&&(Date.now()-new Date(s.created_time))/DAY>3)out.push({id:'s'+s.id,kind:'scale',set:s.id,val:Math.round(b*1.2),title:`Додати бюджет «${s.name}»`,why:`${RES[g.res][3]} ${usd(c)} при нормі ${usd(g.norm)}, ${rn(si[g.res],g.res)} за тиждень. Можна обережно додати 20%: ${usd(b)} → ${usd(Math.round(b*1.2))} на день.`,btn:'Додати 20%'})}
+  if(b&&si[g.res]>=5&&c<=g.norm&&Date.now()-Math.max(last,new Date(s.updated_time||s.created_time).getTime(),new Date(s.created_time).getTime())>scaleWaitD(g.norm,b)*DAY)out.push({id:'s'+s.id,kind:'scale',set:s.id,val:Math.round(b*1.2),title:`Додати бюджет «${s.name}»`,why:`${RES[g.res][3]} ${usd(c)} при нормі ${usd(g.norm)}, ${rn(si[g.res],g.res)} за тиждень. Можна обережно додати 20%: ${usd(b)} → ${usd(Math.round(b*1.2))} на день.`,btn:'Додати 20%'})}
  return out.filter(r=>!dis[r.id])}
 const rejected=()=>L$.ads.filter(a=>/DISAPPROVED|WITH_ISSUES/.test(a.effective_status));
 const reasons=a=>{const out=[];const f=a.ad_review_feedback||{};for(const grp of Object.values(f))if(grp&&typeof grp==='object')for(const [k,v] of Object.entries(grp))out.push(typeof v==='string'?v:k);
@@ -346,7 +352,7 @@ const reasons=a=>{const out=[];const f=a.ad_review_feedback||{};for(const grp of
 const recCard=()=>{const r=recs(),rj=rejected();let h='';
  if(rj.length)h+=`<h2>Відхилено Meta</h2>`+rj.map(a=>`<div class="hint badh" data-adlive="${a.id}"><div class="ico i-bad">!</div><div class="tx" style="flex:1"><b>${esc(a.name)}</b><small style="display:block;color:var(--mut);margin-top:3px">${esc((reasons(a)[0]||'Причину видно в Meta').slice(0,140))}</small></div><span class="chev">›</span></div>`).join('');
  if(!r.length)return h+(tok()&&L$.ads.length?`<h2>Рішення</h2><div class="card">Все в нормі, рішень не треба. Перевіряю щоразу, як відкриваєш застосунок, і щоранку пишу в Telegram.</div>`:'');
- return h+`<h2>Рішення</h2><p class="h2s">Перевірив рекламу за правилами таргетолога. Нові оголошення перші 3 дні не чіпаю ${q('learn')}</p>`+r.map(x=>`<div class="card"><div style="display:flex;gap:12px"><div class="ico ${x.kind==='pause'?'i-bad':x.kind==='scale'?'i-good':'i-mid'}" style="font-size:${x.kind==='pause'?13:18}px">${x.kind==='pause'?'❚❚':x.kind==='scale'?'↗':'↻'}</div><div style="flex:1"><b>${esc(x.title)}</b><div style="color:var(--mut);font-size:13.5px;margin-top:4px">${x.why}</div></div></div>
+ return h+`<h2>Рішення</h2><p class="h2s">Перевірив рекламу за правилами таргетолога. Нове оголошення оцінюю, коли воно витратить дві норми ціни результату або набере 3 результати, але не раніше ніж за 2 доби. На малому бюджеті це довше, на великому швидше ${q('learn')}</p>`+r.map(x=>`<div class="card"><div style="display:flex;gap:12px"><div class="ico ${x.kind==='pause'?'i-bad':x.kind==='scale'?'i-good':'i-mid'}" style="font-size:${x.kind==='pause'?13:18}px">${x.kind==='pause'?'❚❚':x.kind==='scale'?'↗':'↻'}</div><div style="flex:1"><b>${esc(x.title)}</b><div style="color:var(--mut);font-size:13.5px;margin-top:4px">${x.why}</div></div></div>
  <div class="row2"><button class="btn ${x.kind==='pause'?'bad':x.kind==='scale'?'good':''}" data-rec="${x.id}">${x.btn}</button><button class="btn ghost" data-recno="${x.id}">Не зараз</button></div></div>`).join('')};
 async function recClick(d){
  if(d.recno){const k='dis_'+new Date().toISOString().slice(0,10);let dis={};try{dis=JSON.parse(ls.get(k)||'{}')}catch(e){}dis[d.recno]=1;ls.set(k,JSON.stringify(dis));render();return true}
@@ -823,7 +829,7 @@ const howView=()=>`<h2 style="margin-top:6px">Як працює ШІ-тарге�
 <div class="fs"><div class="dotc">🚀</div><b>Креатив за хвилину</b><small>Фото чи відео (4:5 і 9:16), до трьох текстів. ШІ напише тексти й розбере креатив до запуску, зокрема ризик відхилення Meta. Запущений текст можна змінити, статистика збережеться.</small></div>
 <div class="fs"><div class="dotc">📊</div><b>Щоранку звіт у Telegram</b><small>О 07:47: вчора й за тиждень, ціна результату проти норми, відхилені оголошення з причиною, рішення: що вимкнути, де додати бюджет. Детальний звіт по днях, віку, статі й плейсментах у вкладці «Звіт».</small></div>
 <div class="fs"><div class="dotc">💳</div><b>Рахує справжніх клієнтів</b><small>Дзвінки й оплати з таблиці клієнтів або ручних відміток. Видно ціну клієнта й скільки повертає кожна гривня реклами.</small></div>
-<div class="fs"><div class="dotc">✅</div><b>Ти вирішуєш</b><small>Без твого «так» нічого не змінюється. Нову рекламу ШІ не чіпає 3 дні, бюджет додає по 20% не частіше ніж раз на 3 дні. Ключі Meta та ШІ зберігаються лише у твоєму Telegram.</small></div>
+<div class="fs"><div class="dotc">✅</div><b>Ти вирішуєш</b><small>Без твого «так» нічого не змінюється. Нову рекламу ШІ оцінює, лише коли вона витратила дві норми ціни результату або набрала 3 результати, тож на малому бюджеті чекає довше. Бюджет додає по 20%, а наступний крок робить, коли група витратить ще три норми за новим бюджетом (2–7 днів). Ключі Meta та ШІ зберігаються лише у твоєму Telegram.</small></div>
 </div></div><button class="btn" data-back="1">Зрозуміло</button>`;
 
 /* ───── Норми: юніт-економіка замість «60 грн з повітря» ───── */
@@ -853,9 +859,9 @@ async function saveNorms(){const c=calcN(nd);L$.norms={conv:c.conv,lead:c.lead,l
 /* ───── Знання таргетолога, які ШІ застосовує в усіх відповідях ───── */
 const SKILLS=`Правила роботи таргетолога (застосовуй, коли доречно):
 - Рішення приймай за ціною результату проти норми, а не за CTR чи охопленням. Норма = середній чек × частка на рекламу × конверсія в клієнта.
-- Перші 3 дні та ~50 результатів оголошення в навчанні: не вимикати й не міняти без потреби.
+- Навчання Meta: ~50 результатів за тиждень після останньої суттєвої зміни. Нове оголошення не оцінювати, поки не витратило 2 норми або не набрало 3 результати (мінімум 2 доби); кількість днів залежить від бюджету: ≈ 2 норми ÷ денний бюджет на оголошення.
 - Вимикати: витрачено ≥2 норми без результату, або ціна >1,5 норми після ≥3 результатів. Єдине оголошення в групі не вимикати без заміни.
-- Бюджет міняти не більше ніж на 20% і не частіше ніж раз на 3 дні, інакше знову навчання.
+- Бюджет міняти не більше ніж на 20% за раз (більша зміна перезапускає навчання). Наступна зміна, коли група витратила ще ~3 норми за новим бюджетом: від 2 до 7 днів залежно від бюджету.
 - Малий бюджет (до ~300 ₴/день): одна кампанія, одна група, Advantage+ аудиторія й автоплейсменти, 2–4 креативи. Не дробити на багато груп.
 - Креатив важливіший за таргетинг: тестуй різні кути (біль, результат, кейс, ціна, процес), а не кольори кнопки. Хук у перші 3 секунди.
 - Частота >3 за тиждень означає втому креативу. CPM росте: аудиторія вузька або креатив слабкий.

@@ -47,6 +47,16 @@ def _age_h(iso, now):
     return (now - datetime.strptime(iso[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)).total_seconds() / 3600
 
 
+def ad_ready(age_h, spend, res, T):
+    """Чи вже можна судити оголошення: за грошима й результатами, а не за днями (як у застосунку)."""
+    return age_h >= 168 or (age_h >= 48 and (spend >= 2 * T or res >= 3)) or (age_h >= 24 and spend >= 3 * T)
+
+
+def scale_wait_days(T, budget):
+    """Скільки чекати після зміни бюджету: поки група витратить ~3 норми за новим бюджетом, від 2 до 7 днів."""
+    return min(7, max(2, -(-3 * T // max(budget, 1))))
+
+
 def evaluate(ads, sets, ins, sins, kpi, now):
     """Повертає список рішень: pause / replace / fatigue / scale. Ті самі запобіжники, що в застосунку."""
     N, by_set = norms(kpi), {s["id"]: s for s in sets}
@@ -56,10 +66,10 @@ def evaluate(ads, sets, ins, sins, kpi, now):
         per_set[a["adset_id"]] = per_set.get(a["adset_id"], 0) + 1
     out = []
     for a in active:
-        if _age_h(a["created_time"], now) < 72:
-            continue
         r = goal_res(by_set.get(a["adset_id"]))
         T, i = N[r], ins.get(a["id"]) or {"spend": 0, r: 0, "freq": 0}
+        if not ad_ready(_age_h(a["created_time"], now), i["spend"], i.get(r, 0), T):
+            continue
         c = i["spend"] / i[r] if i.get(r) else None
         can = per_set[a["adset_id"]] > 1
         if not i.get(r) and i["spend"] >= 2 * T:
@@ -70,9 +80,12 @@ def evaluate(ads, sets, ins, sins, kpi, now):
         if i.get("freq", 0) > 3.2:
             out.append({"kind": "fatigue", "name": a["name"], "why": f"частота {i['freq']:.1f}: люди втомились, пора новий креатив"})
     for s in sets:
-        if s.get("effective_status") != "ACTIVE" or not s.get("daily_budget") or _age_h(s["created_time"], now) < 72:
+        if s.get("effective_status") != "ACTIVE" or not s.get("daily_budget"):
             continue
         r = goal_res(s)
+        since = min(_age_h(s["created_time"], now), _age_h(s.get("updated_time") or s["created_time"], now))
+        if since < 24 * scale_wait_days(N[r], int(s["daily_budget"]) / 100):
+            continue
         si = sins.get(s["id"]) or {"spend": 0, r: 0}
         c = si["spend"] / si[r] if si.get(r) else None
         if si.get(r, 0) >= 5 and c <= N[r]:
@@ -143,7 +156,7 @@ def run(cfg, now=None, send=True):
     v, A = cfg["meta"].get("api_version", "v24.0"), f"act_{cfg['meta']['ad_account_id']}"
     acc = _get(A, token, v, fields="name")
     ads = _get(f"{A}/ads", token, v, fields="id,name,adset_id,effective_status,created_time,ad_review_feedback,issues_info", limit=200)["data"]
-    sets = _get(f"{A}/adsets", token, v, fields="id,name,daily_budget,effective_status,optimization_goal,created_time", limit=100)["data"]
+    sets = _get(f"{A}/adsets", token, v, fields="id,name,daily_budget,effective_status,optimization_goal,created_time,updated_time", limit=100)["data"]
     ins = {r["ad_id"]: px(r) for r in _get(f"{A}/insights", token, v, level="ad", date_preset="last_7d", fields="ad_id," + INS, limit=300)["data"]}
     sins = {r["adset_id"]: px(r) for r in _get(f"{A}/insights", token, v, level="adset", date_preset="last_7d", fields="adset_id," + INS, limit=100)["data"]}
     tot = lambda preset: px((_get(f"{A}/insights", token, v, date_preset=preset, fields=INS)["data"] or [{}])[0])  # noqa: E731
