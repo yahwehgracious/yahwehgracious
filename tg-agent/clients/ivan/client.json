@@ -77,11 +77,11 @@
     "token_env": "META_ACCESS_TOKEN"
   },
   "analysis": {
-    "provider": "anthropic",
+    "provider": "gemini",
     "video_provider": "gemini"
   },
   "brief": {
-    "provider": "anthropic",
+    "provider": "gemini",
     "concepts": 6,
     "every_days": 7
   },

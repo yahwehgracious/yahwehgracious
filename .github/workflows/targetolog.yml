@@ -41,7 +41,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install -r requirements.txt && python -m playwright install --with-deps chromium
-      - run: python -m targetolog update ivan --out ../tg-app/index.html --notify
+      - run: python -m targetolog update ivan --out ../tg-app/index.html --notify ${{ github.event_name == 'workflow_dispatch' && '--brief' || '' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
