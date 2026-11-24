@@ -565,7 +565,7 @@ async function makeRt(cid){let aud=await CS.get('rt_audience');
 
 /* ───── Креативи ───── */
 let draft=null;
-const fileBtn=(id,label,f,multi)=>`<label class="btn ghost" style="margin:6px 0 0;cursor:pointer">${f?'✓ '+esc(f.name):label}<input id="${id}" type="file" accept="image/*,video/*" ${multi?'multiple':''} style="display:none"></label>`;
+const fileBtn=(id,label,f,multi,del)=>`<div style="display:flex;gap:8px;align-items:stretch;margin:6px 0 0"><label class="btn ghost" style="margin:0;cursor:pointer;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f?'✓ '+esc(f.name):label}<input id="${id}" type="file" accept="image/*,video/*" ${multi?'multiple':''} style="display:none"></label>${f&&del?`<button class="btn ghost" data-fdel="${del}" aria-label="Прибрати файл" style="margin:0;width:auto;padding:0 18px;color:var(--bad)">✕</button>`:''}</div>`;
 const isCar=d=>d?.mode==='car';
 /* пости з Instagram сторінки: просуваємо як є, з лайками й коментарями */
 let IGM=null;
@@ -588,9 +588,9 @@ const addView=()=>()=>{const d=draft,car=isCar(d),has=car?d.cards?.length:d.file
  ${(d.cards||[]).map((c,i)=>cardRow(c,i,d.cards.length)).join('')}
  ${(d.cards||[]).length<10?fileBtn('ccar',(d.cards||[]).length?'+ Додати картки':'Вибрати фото чи відео',null,true):''}
  <div class="h2s" style="margin:6px 0 0">Можна обрати кілька файлів одразу. Фото й відео можна змішувати. Порядок міняй стрілками, перша картка найважливіша. Окремої версії 9:16 у каруселі нема, у сторіс Meta показує картки по черзі.</div>`
- :`<div class="l">Основний файл · квадрат або 4:5</div>${fileBtn('cf','Вибрати фото чи відео',d.file)}
+ :`<div class="l">Основний файл · квадрат або 4:5</div>${fileBtn('cf','Вибрати фото чи відео',d.file,0,'file')}
  ${d.preview?`<img src="${d.preview}" style="width:100%;border-radius:12px;margin-top:10px">`:d.file?'<div class="h2s" style="margin:6px 0 0">🎬 Відео: ШІ подивиться 6 кадрів від початку до кінця. Звук не чує, тому суть озвучки напиши в полі «Про що реклама».</div>':''}
- <div class="l" style="margin-top:14px">Вертикальний 9:16 для сторіс і Reels (необов'язково)</div>${fileBtn('cf2','Додати вертикальну версію',d.file2)}
+ <div class="l" style="margin-top:14px">Вертикальний 9:16 для сторіс і Reels (необов'язково)</div>${fileBtn('cf2','Додати вертикальну версію',d.file2,0,'file2')}${d.file&&d.file2&&d.file.name===d.file2.name&&d.file.size===d.file2.size?'<div class="h2s" style="margin:6px 0 0;color:var(--mid)">Це той самий файл, що й основний. Вертикальна версія має бути окремим файлом 9:16, інакше прибери її.</div>':''}
  <div class="h2s" style="margin:6px 0 0">Без нього Meta сама обріже основний файл під сторіс. Обидва файли мають бути одного типу: два фото або два відео.</div>`}</div>
  <div class="card"><div class="l">Про що реклама (для ШІ, необов'язково)</div><input id="ctopic" class="in" value="${esc(d.topic||'')}" placeholder="напр. AI-бот для салону: відповідає в Direct 24/7">
  <button class="btn ${L$.ai?'':'ghost'} sm" data-aitext="1">${L$.ai?(has?(car?'✨ ШІ напише тексти під усю карусель':'✨ ШІ напише 3 тексти під цей креатив'):'✨ ШІ напише 3 варіанти тексту'):'✨ Тексти від ШІ: додай ключ у налаштуваннях'}</button></div>
@@ -602,7 +602,7 @@ const addView=()=>()=>{const d=draft,car=isCar(d),has=car?d.cards?.length:d.file
 const keepDraft=()=>{if(!$('#ct'))return;Object.assign(draft,{topic:$('#ctopic').value,headline:$('#ch').value,text:$('#ct').value,text2:$('#ct2').value,text3:$('#ct3').value});(draft.cards||[]).forEach((c,i)=>{const el=$('#cct'+i);if(el)c.title=el.value})};
 document.addEventListener('change',e=>{if(!['cf','cf2','ccar'].includes(e.target.id))return;const fs=[...e.target.files];if(!fs.length)return;keepDraft();
  if(e.target.id==='ccar'){draft.cards=draft.cards||[];for(const f of fs){if(draft.cards.length>=10){toast('Максимум 10 карток');break}draft.cards.push({file:f,preview:f.type.startsWith('image')?URL.createObjectURL(f):'',title:''})}}
- else if(e.target.id==='cf'){draft.file=fs[0];draft.preview=fs[0].type.startsWith('image')?URL.createObjectURL(fs[0]):''}else draft.file2=fs[0];re(addView())});
+ else if(e.target.id==='cf'){draft.file=fs[0];draft.preview=fs[0].type.startsWith('image')?URL.createObjectURL(fs[0]):''}else draft.file2=fs[0];e.target.value='';re(addView())});
 async function upload(f){const fd=new FormData();
  if(f.type.startsWith('image')){fd.append('filename',f,f.name);const j=await gform(`${ACT()}/adimages`,fd);const im=Object.values(j.images)[0];return {kind:'image',ref:im.hash,thumb:im.url}}
  fd.append('source',f,f.name);const j=await gform(`${ACT()}/advideos`,fd);return {kind:'video',ref:j.id,thumb:''}}
@@ -1006,6 +1006,7 @@ async function act(d){
  // креативи
  if(d.add!==undefined){if(!tok()){go(keyView());return}draft={camp:d.addcamp||null};go(addView());return}
  if(d.useidea!==undefined){const c=allIdeas()[+d.useidea];draft={headline:c.headline,text:c.primary_text,topic:c.concept};tab='ads';stack=[];go(addView());return}
+ if(d.fdel){keepDraft();if(d.fdel==='file'){draft.file=null;draft.preview=''}else draft.file2=null;re(addView());return}
  if(d.crmode){keepDraft();draft.mode=d.crmode;re(addView());return}
  if(d.igre){IGM=null;re(addView());return}
  if(d.igsel){draft.ig=d.igsel;re(addView());return}
@@ -1105,7 +1106,7 @@ async function act(d){
  if(d.open){try{tg.openLink(d.open)}catch(x){window.open(d.open)}return}
  if(d.q){const g=G[d.q];sheet(`<h3>${g[0]} <span class="pro">${g[1]}</span></h3><div style="color:#c9c9d6;font-size:15px">${g[2]}</div><button class="btn ghost" data-x="1">Зрозуміло</button>`);return}}
 const keepNc=()=>{if(!nc)return;if($('#nbudin'))nc.budget=Math.round(+$('#nbudin').value.replace(/\D/g,''))||nc.budget;if($('#nlink'))nc.link=$('#nlink').value.trim();if($('#nname'))nc.name=$('#nname').value.trim()};
-document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-crmode],[data-cup],[data-cdown],[data-cdel],[data-compset],[data-rules],[data-rsave],[data-rdef],[data-nhist],[data-napply],[data-igre],[data-igsel],[data-igsave],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rgo],[data-rq],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-cadd],[data-ghrun],[data-csave],[data-ghsave],[data-ghdel],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
+document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-crmode],[data-cup],[data-cdown],[data-cdel],[data-compset],[data-rules],[data-rsave],[data-rdef],[data-nhist],[data-napply],[data-igre],[data-igsel],[data-igsave],[data-fdel],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rgo],[data-rq],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-cadd],[data-ghrun],[data-csave],[data-ghsave],[data-ghdel],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
  if(!t)return;if(t.dataset.q)e.stopPropagation();try{await act({...t.dataset})}catch(x){err(x)}});
 render();liveLoad();
 /* Telegram кешує сторінку: якщо на GitHub уже новіша збірка — перезавантажуємось */
