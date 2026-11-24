@@ -838,15 +838,15 @@ const calcN=i=>{const cac=i.check*i.share/100,conv=cac*i.chat/100;return {cac,co
 let nd=null;
 const normsView=()=>()=>{const i=nd,c=calcN(i),f=(k,l,h,suf)=>`<div class="sec"><div class="l">${l}</div><div style="display:flex;align-items:center;gap:8px"><input class="in" data-nin="${k}" inputmode="numeric" value="${i[k]}" style="margin:0;max-width:130px"><span style="color:var(--mut)">${suf}</span></div><div class="h2s" style="margin:4px 0 0">${h}</div></div>`;
  return `<h2 style="margin-top:6px">Норми ціни результату</h2><p class="h2s">Таргетолог не бере норму з повітря: рахує, скільки можна віддати за одного клієнта, і множить на те, яка частка переписок стає клієнтами ${q('norm')}</p>
- <div class="card">${f('check','Середній чек','Скільки в середньому платить клієнт за проєкт.','₴')}
- ${f('share','Скільки з чека готовий віддати на рекламу','Зазвичай 10–20% для послуг. Більше, і реклама з\'їдає прибуток.','%')}
+ <div class="card">${f('check','Скільки приносить один клієнт','Чек або прибуток з одного клієнта, що тобі зручніше. Головне, щоб відсоток нижче був саме від цього числа.','₴')}
+ ${f('share','Скільки з цієї суми готовий віддати на рекламу','Зазвичай 10–20% для послуг. Більше, і реклама з\'їдає прибуток.','%')}
  ${f('chat','Зі 100 переписок стають клієнтами','Якщо не знаєш, почни з 5–10%. Потім уточниш із таблиці клієнтів.','%')}
  ${f('lead','Зі 100 заявок з форми стають клієнтами','Заявки з форми зазвичай холодніші за переписки.','%')}
  ${f('click','Зі 100 переходів пишуть тобі','Для Telegram чи сайту зазвичай 5–15%.','%')}</div>
  <div class="card hero" id="nres">${nres(c)}</div>
  <button class="btn" data-nsave="1">Зберегти норми</button>
  <button class="btn ghost" data-nai="1">${L$.ai?'✨ ШІ перевірить, чи реалістично для ніші':'✨ Перевірка ШІ: додай ключ у налаштуваннях'}</button><div id="naiout"></div>
- <p class="h2s" style="margin-top:10px">Ті самі норми бере щоранковий звіт у Telegram.</p>`};
+ <p class="h2s" style="margin-top:10px">Норми свої для кожного кабінету Meta: їх бачить і застосунок, і щоранковий звіт у Telegram. Новий власник бота задає свої.</p>`};
 const nres=c=>`<div class="lab">Можна віддати за одного клієнта <span class="pro">max CAC</span></div><div class="big">${usd(c.cac)}</div>
  <div class="mg" style="margin:10px 0 0"><div class="m"><span>Переписка</span><b>${usd(c.conv)}</b></div><div class="m"><span>Заявка</span><b>${usd(c.lead)}</b></div><div class="m"><span>Перехід</span><b>${usd(c.link)}</b></div></div>
  <div class="h2s" style="margin:8px 0 0">Переписка = ${usd(c.cac)} × ${nd.chat}%. Дорожче за це, і реклама не окупається.</div>`;
