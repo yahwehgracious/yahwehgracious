@@ -15,7 +15,9 @@ APP = r"""<!doctype html><html lang="uk"><head><meta charset="utf-8">
 :root{--bg:#07070c;--card:rgba(255,255,255,.045);--card2:rgba(255,255,255,.08);--line:rgba(255,255,255,.09);--ink:#f4f4f8;--mut:#9a9ab0;
 --g1:#8b5cf6;--g2:#22d3ee;--good:#34d399;--bad:#fb7185;--mid:#fbbf24;--learn:#94a3b8}
 *{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Manrope,-apple-system,Segoe UI,Roboto,sans-serif;overflow-x:hidden}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Manrope,-apple-system,Segoe UI,Roboto,sans-serif;overflow-x:hidden;-webkit-text-size-adjust:100%}
+b,h2,h3,.name,.big{text-wrap:balance}p,small,.h2s,.copy,.card,.item .tx{text-wrap:pretty;overflow-wrap:anywhere}
+button,input,textarea{-webkit-appearance:none;appearance:none}
 body::before{content:"";position:fixed;inset:-20% -30% auto;height:60vh;background:radial-gradient(closest-side,rgba(139,92,246,.22),transparent),radial-gradient(closest-side at 80% 40%,rgba(34,211,238,.14),transparent);pointer-events:none;z-index:0}
 main{position:relative;z-index:1;padding:14px 14px calc(96px + env(safe-area-inset-bottom))}
 .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:4px 2px 14px}
@@ -45,12 +47,13 @@ main{position:relative;z-index:1;padding:14px 14px calc(96px + env(safe-area-ins
 .btn.sm{padding:10px 12px;font-size:13.5px;margin-top:8px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row2 .btn{font-size:13.5px;padding:13px 10px}
 h2{font-size:20px;font-weight:800;letter-spacing:-.02em;margin:24px 2px 4px}.h2s{color:var(--mut);font-size:13.5px;margin:0 2px 12px}
-.item{display:flex;gap:12px;align-items:center;padding:14px;background:var(--card);border:1px solid var(--line);border-radius:18px;margin-bottom:10px;cursor:pointer;transition:transform .12s}
+.item{display:flex;gap:12px;align-items:flex-start;padding:14px;background:var(--card);border:1px solid var(--line);border-radius:18px;margin-bottom:10px;cursor:pointer;transition:transform .12s}
 .item:active{transform:scale(.98)}.item.sel{border-color:var(--g2);background:rgba(34,211,238,.08)}
 .ico{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;flex:none;font-size:18px;font-weight:800}
 .i-bad{background:rgba(251,113,133,.15);color:var(--bad)}.i-good{background:rgba(52,211,153,.15);color:var(--good)}.i-mid{background:rgba(251,191,36,.15);color:var(--mid)}.i-learn{background:rgba(148,163,184,.15);color:var(--learn)}.i-ai{background:linear-gradient(135deg,rgba(139,92,246,.35),rgba(34,211,238,.2))}
 .th{width:46px;height:46px;border-radius:12px;object-fit:cover;flex:none}
-.item .tx{flex:1}.item .tx b{display:block;font-weight:700;line-height:1.3}.item .tx small{color:var(--mut);font-size:13px;display:block;margin-top:3px}
+.item .tx{flex:1;align-self:center}.item .tx b{display:block;font-weight:700;font-size:15px;line-height:1.32;letter-spacing:-.005em}.item .chev,.item .val{align-self:center}.item .tx small{color:var(--mut);font-size:13px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:3px}
+.mg>.m:last-child:nth-child(odd){grid-column:1/-1}
 .item .val{text-align:right;font-weight:800;white-space:nowrap;font-size:14px}.item .val small{display:block;color:var(--mut);font-weight:500;font-size:11.5px}
 .chev{color:var(--mut);font-size:22px}
 .chip{display:inline-block;border-radius:10px;padding:4px 9px;font-size:12px;font-weight:700;background:var(--card2);margin:2px 4px 2px 0}
@@ -70,7 +73,7 @@ svg text{font:600 11px Manrope,sans-serif;fill:var(--mut)}
 .idea{background:linear-gradient(135deg,rgba(139,92,246,.16),rgba(34,211,238,.08));border:1px solid rgba(139,92,246,.38);border-radius:14px;padding:12px;margin-top:14px}
 .idea b{color:#c4b5fd}
 .seg{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;margin:12px 0;overflow-x:auto;scrollbar-width:none}
-.seg button{flex:1;white-space:nowrap;border:0;background:none;color:var(--mut);font:700 13px Manrope,sans-serif;padding:9px 8px;border-radius:10px;cursor:pointer}
+.seg button{flex:1 1 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:0;background:none;color:var(--mut);font:700 13px Manrope,sans-serif;padding:9px 4px;border-radius:10px;cursor:pointer}
 .seg button.on{background:var(--card2);color:var(--ink)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 0}
 .chips button{flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 13px;font:600 13px Manrope,sans-serif;cursor:pointer}
@@ -101,6 +104,7 @@ nav .bd{position:absolute;top:-4px;left:calc(50% + 6px);background:var(--bad);co
 .toast{position:fixed;left:50%;bottom:104px;transform:translate(-50%,10px);background:#1c1c28;border:1px solid var(--line);padding:11px 16px;border-radius:14px;opacity:0;transition:.25s;z-index:50;font-weight:700;max-width:90vw;text-align:center}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.ttl{font-size:19px;font-weight:800;line-height:1.28;letter-spacing:-.015em;margin-top:4px;text-wrap:balance}
 .pro{font:600 10.5px ui-monospace,SFMono-Regular,Menlo,monospace;color:#8b8ba6;background:rgba(255,255,255,.06);border-radius:5px;padding:1px 5px;margin-left:4px;letter-spacing:.02em;white-space:nowrap;vertical-align:1px}
 .hint{display:flex;gap:12px;align-items:center;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);border-radius:16px;padding:12px 14px;margin-bottom:10px;cursor:pointer}
 .hint.badh{background:rgba(251,113,133,.08);border-color:rgba(251,113,133,.3)}
@@ -315,7 +319,7 @@ function recs(){if(!tok())return[];const out=[],today=new Date().toISOString().s
  const active=L$.ads.filter(a=>a.effective_status==='ACTIVE');const perSet={};for(const a of active)perSet[a.adset_id]=(perSet[a.adset_id]||0)+1;
  for(const a of active){const g=GOALS[goalOfAd(a)],T=g.norm,r=g.res,i=L$.ins[a.id]||zero();if((Date.now()-new Date(a.created_time))/36e5<72)continue;
   const c=cost(i,r),can=perSet[a.adset_id]>1;
-  if(!i[r]&&i.spend>=2*T)out.push(can?{id:'p'+a.id,kind:'pause',ad:a.id,title:`Вимкнути «${a.name}»`,why:`${usd(i.spend)} за тиждень і жодної: ${RES[r][2]} нема. Норма ${usd(T)} за ${RES[r][0]}.`,btn:'Вимкнути'}:
+  if(!i[r]&&i.spend>=2*T)out.push(can?{id:'p'+a.id,kind:'pause',ad:a.id,title:`Вимкнути «${a.name}»`,why:`${usd(i.spend)} за тиждень і 0 ${RES[r][2]}. Норма ${usd(T)} за ${RES[r][0]}.`,btn:'Вимкнути'}:
    {id:'r'+a.id,kind:'new',title:`Заміни «${a.name}»`,why:`${usd(i.spend)} і жодного результату, але це єдине оголошення в групі: вимкнеш, і реклама зупиниться. Додай новий креатив, потім вимкнемо цей.`,btn:'Додати креатив'});
   else if(i[r]>=3&&c>1.5*T&&can)out.push({id:'p'+a.id,kind:'pause',ad:a.id,title:`Вимкнути «${a.name}»`,why:`${RES[r][3]} ${usd(c)}, у ${(c/T).toFixed(1)} раза дорожче норми. Гроші краще віддати кращим оголошенням.`,btn:'Вимкнути'});
   if(i.freq>3.2)out.push({id:'f'+a.id,kind:'new',title:`Люди втомились від «${a.name}»`,why:`Одна людина бачила її вже ${i.freq.toFixed(1)} раза. Реакція падатиме, пора новий креатив.`,btn:'Додати креатив'})}
@@ -378,7 +382,7 @@ V.ads=()=>{if(waiting())return top()+waitCard();if(!tok())return top()+setupCard
 /* кампанія */
 const campView=cid=>()=>{const c=L$.camps.find(x=>x.id===cid);if(!c)return'<div class="card">Кампанію не знайдено.</div>';const gk=goalOfCamp(cid),g=GOALS[gk],i=campIns(cid),cpr=cost(i,g.res),sets=setsOf(cid),ads=adsOf(cid),cf=L$.cfg[cid]||{};
  const v=verd(cpr,g.norm,i.spend);
- return `<div class="card hero"><div class="lab">${g.ico} ${g.name}</div><div style="font-size:21px;font-weight:800;margin:4px 0 10px;line-height:1.25">${esc(c.name)}</div>
+ return `<div class="card hero"><div class="lab">${g.ico} ${g.name}</div><div class="ttl" style="margin:4px 0 10px">${esc(c.name)}</div>
   <span class="pill p-${c.effective_status==='ACTIVE'?v:'learn'}">${c.effective_status==='ACTIVE'?VL[v]:'На паузі'}</span>${cf.link?`<div class="h2s" style="margin:10px 0 0">Посилання: ${esc(cf.link)}</div>`:''}</div>
  <div class="mg"><div class="m"><span>Витрати за 7 дн ${q('spend')}</span><b>${usd(i.spend)}</b></div><div class="m"><span>${RES[g.res][2][0].toUpperCase()+RES[g.res][2].slice(1)} ${q('res')}</span><b>${fmt(i[g.res])}</b></div>
   <div class="m"><span>${RES[g.res][3]} ${q('cpr')}</span><b>${usd(cpr)}</b></div><div class="m"><span>Норма ${q('norm')}</span><b>${usd(g.norm)}</b></div></div>
@@ -391,10 +395,10 @@ const campView=cid=>()=>{const c=L$.camps.find(x=>x.id===cid);if(!c)return'<div 
  ${c.effective_status==='ACTIVE'?`<button class="btn bad" data-cpause="${cid}">⏸ Зупинити кампанію</button>`:`<button class="btn good" data-cresume="${cid}">▶ Увімкнути кампанію</button>`}`};
 const adRow=a=>{const g=GOALS[goalOfAd(a)],i=L$.ins[a.id]||zero(),c=cost(i,g.res),v=a.effective_status!=='ACTIVE'?(/DISAPPROVED|ISSUES/.test(a.effective_status)?'bad':'learn'):verd(c,g.norm,i.spend);
  const st={ACTIVE:v==='good'?'Приносить '+RES[g.res][2]+' дешево':v==='bad'?(c?'Дорого':'Витрачає без результату'):v==='mid'?'Трохи дорожче норми':'Збирає дані',PAUSED:'На паузі',DISAPPROVED:'Відхилено Meta',WITH_ISSUES:'Є проблема',PENDING_REVIEW:'На перевірці Meta',IN_PROCESS:'Обробляється',CAMPAIGN_PAUSED:'Кампанія на паузі',ADSET_PAUSED:'Група на паузі'}[a.effective_status]||a.effective_status;
- return `<div class="item" data-adlive="${a.id}">${a.creative?.thumbnail_url?`<img class="th" src="${esc(a.creative.thumbnail_url)}">`:`<div class="ico i-${v}">•</div>`}<div class="tx"><b>${esc(a.name)}</b><small style="color:var(--${v==='learn'?'mut':v})">${st}</small></div><div class="val">${c!=null?usd(c)+'<small>за '+RES[g.res][0]+'</small>':usd(i.spend)+'<small>витрати</small>'}</div></div>`};
+ return `<div class="item" data-adlive="${a.id}">${a.creative?.thumbnail_url?`<img class="th" src="${esc(a.creative.thumbnail_url)}">`:`<div class="ico i-${v}">📣</div>`}<div class="tx"><b>${esc(a.name)}</b><small style="color:var(--${v==='learn'?'mut':v})">${st}</small></div><div class="val">${c!=null?usd(c)+'<small>за '+RES[g.res][0]+'</small>':usd(i.spend)+'<small>витрати</small>'}</div></div>`};
 const adLiveView=id=>()=>{const a=L$.ads.find(x=>x.id===id);if(!a)return'';const g=GOALS[goalOfAd(a)],i=L$.ins[id]||zero(),rs=reasons(a),mine=L$.crs.find(c=>c.ads.some(x=>x.ad===id));
  const m=(k,n,val)=>`<div class="m"><span>${n||G[k][0]} ${q(k)}</span><b>${val}</b><span class="pro" style="margin:4px 0 0;display:inline-block">${G[k][1]}</span></div>`;
- return `<div class="card hero"><div class="lab">${g.ico} ${g.name}</div><div style="font-size:20px;font-weight:800;margin:6px 0">${esc(a.name)}</div>${a.creative?.thumbnail_url?`<img src="${esc(a.creative.thumbnail_url)}" style="width:100%;border-radius:14px;margin-top:8px">`:''}
+ return `<div class="card hero"><div class="lab">${g.ico} ${g.name}</div><div class="ttl" style="margin:6px 0">${esc(a.name)}</div>${a.creative?.thumbnail_url?`<img src="${esc(a.creative.thumbnail_url)}" style="width:100%;border-radius:14px;margin-top:8px">`:''}
   ${a.creative?.body?`<div class="copy" style="margin-top:10px">${esc(a.creative.body)}</div>`:''}</div>
  ${rs.length||/DISAPPROVED|WITH_ISSUES/.test(a.effective_status)?rejCard(rs,mine):''}
  <div class="mg">${m('spend','',usd(i.spend))}${m('res',RES[g.res][2][0].toUpperCase()+RES[g.res][2].slice(1),fmt(i[g.res]))}${m('cpr',RES[g.res][3],usd(cost(i,g.res)))}${m('ctr','',i.impr?(i.clicks/i.impr*100).toFixed(2)+'%':'—')}${m('freq','',i.freq?i.freq.toFixed(1):'—')}${m('cpm','',i.impr?usd(i.spend/i.impr*1000):'—')}</div>
@@ -567,7 +571,7 @@ const crView=id=>()=>{const c=L$.crs.find(x=>x.id==id);if(!c)return'';const s=cr
  const ads=c.ads.map(x=>L$.ads.find(a=>a.id===x.ad)).filter(Boolean),rj=ads.filter(a=>/DISAPPROVED|WITH_ISSUES/.test(a.effective_status));
  const vs=c.texts.map((t,k)=>{const ids=c.ads.filter(x=>x.k===k).map(x=>x.ad),x=insOf(ids),act=ids.some(a=>L$.ads.find(z=>z.id===a)?.effective_status==='ACTIVE');return {t,k,ids,x,act,cpr:g?cost(x,g.res):null}});
  const best=vs.filter(v=>v.cpr!=null).sort((a,b)=>a.cpr-b.cpr)[0];const camps=[...new Set(c.ads.map(x=>x.camp||c.camp))].map(id=>L$.camps.find(z=>z.id===id)?.name).filter(Boolean);
- return `<div class="card hero"><span class="pill ${s[0]}">${s[1]}</span><div style="font-size:20px;font-weight:800;margin:10px 0 0">${esc(c.headline||'Креатив #'+c.id)}</div>
+ return `<div class="card hero"><span class="pill ${s[0]}">${s[1]}</span><div class="ttl" style="margin:10px 0 0">${esc(c.headline||'Креатив #'+c.id)}</div>
  ${camps.length?`<div class="h2s" style="margin:4px 0 0">У кампанії: ${esc(camps.join(', '))}</div>`:''}
  ${c.thumb||c.preview?`<img src="${esc(c.preview||c.thumb)}" style="width:100%;border-radius:14px;margin-top:12px">`:''}${c.ref2?'<div class="h2s" style="margin:8px 0 0">+ вертикальна версія для сторіс і Reels</div>':''}</div>
  ${c.note?`<div class="hint" style="cursor:default"><div class="ico i-mid">!</div><div class="tx"><small style="color:var(--ink)">${esc(c.note)}</small></div></div>`:''}
@@ -616,8 +620,8 @@ async function loadLeads(form){try{const pt=await pageTok();const j=await gget(`
 
 /* ───── Звіт ───── */
 let rp='last_7d',rc='',rb='age';
-const PER=[['last_7d','7 днів'],['last_30d','30 днів'],['this_month','Цей місяць'],['last_month','Минулий']];
-const BR={age:['Вік','age'],gender:['Стать','gender'],place:['Де показується','publisher_platform,platform_position']};
+const PER=[['last_7d','7 днів'],['last_30d','30 днів'],['this_month','Місяць'],['last_month','Минулий']];
+const BR={age:['Вік','age'],gender:['Стать','gender'],place:['Плейсменти','publisher_platform,platform_position']};
 const LBL={male:'Чоловіки',female:'Жінки',unknown:'Невідомо',instagram:'Instagram',facebook:'Facebook',messenger:'Messenger',audience_network:'Audience Network',threads:'Threads',
  feed:'стрічка',story:'сторіс',instagram_stories:'сторіс',instagram_reels:'Reels',facebook_reels:'Reels',reels_overlay:'Reels-оверлей',explore:'Explore',explore_home:'Explore',instagram_explore:'Explore',
  marketplace:'Marketplace',video_feeds:'відео-стрічка',search:'пошук',profile_feed:'профіль',instagram_profile_feed:'профіль',right_hand_column:'права колонка',an_classic:'сайти й додатки'};
@@ -636,9 +640,10 @@ V.rep=()=>{if(waiting())return top()+waitCard();if(!tok())return top()+setupCard
  <div class="chips scroll"><button class="${!rc?'on':''}" data-rc="">Усі кампанії</button>${L$.camps.map(c=>`<button class="${rc===c.id?'on':''}" data-rc="${c.id}">${esc(c.name)}</button>`).join('')}</div>`;
  if(R.loading)return h+'<div class="card"><span class="spin"></span> Рахую…</div>';if(R.err)return h+`<div class="card" style="color:var(--bad)">${esc(R.err)}</div>`;
  const t=R.tot,sp=R.sp||{conv:t.spend,lead:t.spend,link:t.spend},c=cpr(t,sp,r);
+ if(!t.spend&&!t.impr)return h+`<div class="card" style="text-align:center;padding:30px 16px"><div style="font-size:30px">📭</div><b style="display:block;margin-top:8px">За цей період реклама не крутилась</b><div class="h2s" style="margin:6px 0 0">Як тільки запустиш оголошення, тут з'являться витрати, ціна результату, графік по днях і розбивки.</div>${L$.ads.length?'':'<button class="btn" data-tab2="ads">Перейти до реклами</button>'}</div>`;
  h+=`<div class="card hero"><div class="lab">${L('cpr',RES[r][3])}</div><div class="big">${c!=null?cu(c,D.cur):'—'}</div>${c!=null?`<span class="pill p-${verd(c,g.norm,sp[r])}">${VL[verd(c,g.norm,sp[r])]}</span> <span style="color:var(--mut);font-size:13px">норма ${usd(g.norm)}</span>`:''}
   ${R.day.length>1?`<div class="fig"><svg data-ser="1"></svg></div><div class="legend"><span><i style="background:#8b5cf6"></i>витрати за день</span><span><i style="background:#22d3ee;border-radius:50%"></i>${RES[r][2]}</span></div>`:''}</div>
- <div class="mg"><div class="m"><span>Витрати ${q('spend')}</span><b>${usd(t.spend)}</b></div>${['conv','lead','link'].filter(x=>t[x]||x===r).map(x=>`<div class="m"><span>${RES[x][2][0].toUpperCase()+RES[x][2].slice(1)}</span><b>${fmt(t[x])}${t[x]?` <small style="font-size:12px;color:var(--mut)">по ${usd(cpr(t,sp,x))}</small>`:''}</b></div>`).join('')}
+ <div class="mg"><div class="m"><span>Витрати ${q('spend')}</span><b>${usd(t.spend)}</b></div>${['conv','lead','link'].filter(x=>t[x]||x===r).map(x=>`<div class="m"><span>${RES[x][2][0].toUpperCase()+RES[x][2].slice(1)}</span><b>${fmt(t[x])}${t[x]&&cpr(t,sp,x)!=null?` <small style="font-size:12px;color:var(--mut)">по ${usd(cpr(t,sp,x))}</small>`:''}</b></div>`).join('')}
   <div class="m"><span>Охоплення</span><b>${fmt(t.reach)}</b></div><div class="m"><span>Покази</span><b>${fmt(t.impr)}</b></div><div class="m"><span>Клікабельність ${q('ctr')}</span><b>${t.impr?(t.clicks/t.impr*100).toFixed(2)+'%':'—'}</b></div><div class="m"><span>Ціна 1000 показів ${q('cpm')}</span><b>${t.impr?usd(t.spend/t.impr*1000):'—'}</b></div></div>
  <h2>Розбивка</h2><div class="seg">${Object.entries(BR).map(([k,v])=>`<button class="${rb===k?'on':''}" data-rb="${k}">${v[0]}</button>`).join('')}</div>`;
  const rows=(R[rb]||[]).filter(x=>x.spend>0).sort((a,b)=>b.spend-a.spend),mx=Math.max(...rows.map(x=>x.spend),1);
@@ -701,12 +706,12 @@ const hookOf=w=>(w.a?._model!=='mock'&&w.a?.hook?.text)||w.text||w.title||'';
 const CG=(()=>{const m=new Map();D.winners.forEach((w,i)=>{const k=String(w.page_name||'').toLowerCase().replace(/\s+-\s+.*$/,'').replace(/\s*(україна|ukraine|ua)\s*$/,'').trim();
  if(!m.has(k))m.set(k,{name:String(w.page_name).replace(/\s+(Україна|Ukraine)$/,''),ads:[]});m.get(k).ads.push({...w,i})});
  return [...m.values()].map(g=>({...g,ads:g.ads.sort((a,b)=>b.days-a.days),days:Math.max(...g.ads.map(x=>x.days))})).sort((a,b)=>b.days-a.days)})();
-const grpView=k=>()=>{const g=CG[k];return `<div class="card hero"><div class="lab">Конкурент</div><div style="font-size:21px;font-weight:800;margin:3px 0 6px">${esc(g.name)}</div>
+const grpView=k=>()=>{const g=CG[k];return `<div class="card hero"><div class="lab">Конкурент</div><div class="ttl" style="margin:3px 0 6px">${esc(g.name)}</div>
  <div class="h2s" style="margin:0">${g.ads.length} ${pl(g.ads.length,['оголошення крутиться','оголошення крутяться','оголошень крутяться'])} 2+ тижні, найдовше ${g.days} днів</div></div>
  ${g.ads.map(w=>`<div class="item" data-comp="${w.i}" style="display:block"><div style="display:flex;justify-content:space-between;gap:10px"><span class="chip">${w.days} днів</span>${w.a?.steal_this&&w.a._model!=='mock'?'<span class="chip">💡 є що взяти</span>':''}</div>
   <div style="margin-top:8px;font-size:14px">${esc(String(hookOf(w)).slice(0,220))}</div></div>`).join('')}`};
 const compView=i=>()=>{const w=D.winners[i],a=w.a?._model==='mock'?{}:(w.a||{}),h=a.hook||{},o=a.offer||{};
- return `<div class="card hero"><div class="lab">Конкурент</div><div style="font-size:21px;font-weight:800;margin:3px 0 10px">${esc(w.page_name)}</div>
+ return `<div class="card hero"><div class="lab">Конкурент</div><div class="ttl" style="margin:3px 0 10px">${esc(w.page_name)}</div>
  <span class="chip">крутиться ${w.days} днів</span>${w.variants>1?`<span class="chip">${w.variants} копій</span>`:''}${w.reuse?'<span class="chip">запускали повторно</span>':''}</div>
  <div class="card"><div class="sec" style="margin:0"><div class="l">Текст реклами</div>${esc(w.text||w.title)}</div>
  ${h.text?`<div class="sec"><div class="l">Чим чіпляє</div>${esc(h.text)}</div>`:'<div class="sec h2s" style="margin-left:0">Розбір ШІ з\'явиться після наступного оновлення.</div>'}${o.details?`<div class="sec"><div class="l">Що пропонує</div>${esc(o.details)}</div>`:''}
@@ -720,7 +725,7 @@ const ideaView=i=>()=>{const c=allIdeas()[i];const segs=[['sum','Суть'],['sh
   hooks:`<p class="h2s" style="margin:0 0 10px">Перші 3 секунди вирішують, чи прогорне людина. Три варіанти на тест:</p>`+(c.hooks||[]).map((h,n)=>`<div class="step"><div class="tc">#${n+1}</div><div>${esc(h)}</div></div>`).join(''),
   text:`<div class="sec" style="margin:0"><div class="l">Текст оголошення</div><div class="copy">${esc(c.primary_text)}</div></div><div class="sec"><div class="l">Заголовок</div><div class="copy">${esc(c.headline)}</div></div>
   <button class="btn" data-useidea="${i}">Використати для нового креативу</button><button class="btn ghost" data-copy="${i}">Скопіювати</button>`};
- return `<div class="card hero"><div class="lab">${c.ai?'✨ Від ШІ':'Ідея'}</div><div style="font-size:20px;font-weight:800;margin-top:4px;line-height:1.25">${esc(c.concept)}</div></div>
+ return `<div class="card hero"><div class="lab">${c.ai?'✨ Від ШІ':'Ідея'}</div><div class="ttl">${esc(c.concept)}</div></div>
  <div class="seg">${segs.map(([k,l])=>`<button class="${k===bt?'on':''}" data-bt="${k}">${l}</button>`).join('')}</div><div class="card">${B[bt]}</div>${c.ai?`<button class="btn ghost sm" data-delidea="${i}">Видалити ідею</button>`:''}`};
 
 /* ───── Налаштування ───── */
@@ -728,6 +733,7 @@ const mask=s=>s?s.slice(0,6)+'…'+s.slice(-4):'';
 const setView0=()=>()=>`<h2 style="margin-top:6px">Налаштування</h2>
  <div class="card"><div class="l">Кабінет Meta</div><b>${tok()?'✓ Підключено: '+esc(L$.acc.name):L$.token?'Ключ є, але Meta не відповідає':'Не підключено'}</b>${L$.err?`<div style="color:var(--bad);font-size:13px;margin-top:4px">${esc(L$.err)}</div>`:''}
   ${L$.token?`<div class="h2s" style="margin:4px 0 0">Ключ ${esc(mask(L$.token))}</div>`:''}<button class="btn ${L$.token?'ghost':''} sm" data-key="1">${L$.token?'Замінити ключ':'Вставити ключ Meta'}</button>${L$.token?'<button class="btn ghost sm" data-delkey="1">Відключити кабінет</button>':''}</div>
+ <div class="item" data-norms="1" ><div class="ico i-ai">🎯</div><div class="tx"><b>Норми ціни результату</b><small>Переписка ${usd(NR('conv'))} · заявка ${usd(NR('lead'))} · перехід ${usd(NR('link'))}${L$.norms?'':' · стандартні, задай свої'}</small></div><span class="chev">›</span></div>
  <div class="card"><div class="l">ШІ для текстів, розборів та ідей</div><b>${L$.ai?'✓ '+(aiProv()==='anthropic'?'Claude (Anthropic)':aiProv()==='gemini'?'Gemini (Google)':'Невідомий ключ'):'Не підключено'}</b>
   <div class="h2s" style="margin:4px 0 0">Ключ Anthropic (sk-ant-…) або Gemini (AIza…). Зберігається тільки в твоєму Telegram. Один розбір чи 3 тексти коштують кілька центів.</div>
   <input id="aik" class="in mono" placeholder="${L$.ai?esc(mask(L$.ai)):'sk-ant-… або AIza…'}"><div class="row2"><button class="btn sm" data-aisave="1">Зберегти</button>${L$.ai?'<button class="btn ghost sm" data-aidel="1">Видалити</button>':'<span></span>'}</div></div>
@@ -741,7 +747,6 @@ const setView0=()=>()=>`<h2 style="margin-top:6px">Налаштування</h2>
   <div class="h2s" style="margin:10px 0 0">Сайт для кампаній «Переходи на сайт»</div><input id="lsite" class="in" value="${esc(L$.links.site||'')}" placeholder="https://…">
   <div class="h2s" style="margin:10px 0 0">Політика конфіденційності (обов'язкова для лід-форм)</div><input id="lpriv" class="in" value="${esc(L$.links.privacy||'')}"></div>
  <button class="btn" data-lsave="1">Зберегти</button>
- <div class="item" data-norms="1" style="margin-top:12px"><div class="ico i-ai">🎯</div><div class="tx"><b>Норми ціни результату</b><small>Переписка ${usd(NR('conv'))} · заявка ${usd(NR('lead'))} · перехід ${usd(NR('link'))}${L$.norms?'':' · стандартні, задай свої'}</small></div><span class="chev">›</span></div>
  <button class="btn ghost" data-how="1">Як працює ШІ-таргетолог</button>`;
 const keyView=()=>()=>`<h2 style="margin-top:6px">Ключ Meta</h2><div class="card"><div class="h2s" style="margin:0 0 10px">Встав ключ доступу системного користувача targetolog. Він зберігається тільки в твоєму Telegram і використовується лише цим застосунком.</div>
  <textarea id="mk" class="in mono" rows="4" placeholder="EAA…"></textarea></div><button class="btn" data-savekey="1">Підключити</button>`;
