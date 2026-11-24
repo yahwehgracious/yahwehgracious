@@ -1,4 +1,32 @@
 {
- "competitors": [],
- "pages": []
+ "competitors": [
+  "@sendpulse_ua",
+  "@matvieiev.vitaliy",
+  "@netpeak",
+  "@skyworker_content",
+  "@braintixlabs",
+  "@knopa_ai",
+  "@ayudenacom",
+  "@amica_integration",
+  "@truorx",
+  "@ringostat_global",
+  "@mychatbot.ua",
+  "@serhii.kharkivshchenko",
+  "@helennikulina",
+  "@obliko_org"
+ ],
+ "pages": [
+  "1089169704432560",
+  "114552708565280",
+  "1248130001724324",
+  "1306975165825663",
+  "1361910320337275",
+  "1444038135451834",
+  "1520558844844530",
+  "1557806500739104",
+  "1687143084852039",
+  "178899155313595",
+  "532389049957406",
+  "961374987060231"
+ ]
 }
