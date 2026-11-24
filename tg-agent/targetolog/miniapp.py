@@ -680,22 +680,24 @@ function charts(){document.querySelectorAll('svg[data-ser]').forEach(s=>{const R
 let compRows=null,compMsg='';
 const parseComp=v=>{v=(v||'').trim();if(!v)return null;let m=v.match(/view_all_page_id=(\d+)/)||v.match(/^(\d{6,})$/);if(m)return {kind:'fb',value:m[1]};
  m=v.match(/instagram\.com\/([A-Za-z0-9._]+)/i)||v.match(/^@?([A-Za-z0-9._]{2,30})$/);if(m&&!/^(p|reel|stories|explore)$/i.test(m[1]))return {kind:'ig',value:m[1].toLowerCase()};return {bad:v}};
-const compShow=c=>c.kind==='ig'?'@'+c.value:'сторінка '+c.value;
-const compCard=()=>{if(!compRows)compRows=[...(L$.comps||[]).map(c=>c.kind==='ig'?'@'+c.value:c.value)];while(compRows.length<3)compRows.push('');
+const compShow=c=>c.ig?'@'+c.ig:c.kind==='ig'?'@'+c.value:'сторінка '+c.value;
+const compCard=()=>{if(!compRows)compRows=[...(L$.comps||[]).map(c=>c.ig?'@'+c.ig:c.kind==='ig'?'@'+c.value:c.value)];while(compRows.length<3)compRows.push('');
  return `<div class="card"><div class="l">Твої конкуренти</div><div class="h2s" style="margin:0 0 6px">Посилання на Instagram (instagram.com/нік або @нік) чи посилання зі сторінки конкурента в бібліотеці реклами Meta. Я збираю всю їхню рекламу й розбираю, що окупається. Можна вставити кілька через пробіл чи кому в одне поле.</div>
  ${compRows.map((v,k)=>`<input class="in" data-crow="${k}" value="${esc(v)}" placeholder="instagram.com/…" style="margin-top:8px">`).join('')}
  <div class="row2"><button class="btn ghost sm" data-cadd="1">＋ Ще один</button><button class="btn sm" data-csave="1">Зберегти</button></div>
+ <button class="btn ghost sm" data-ghrun="1">🔄 Оновити конкурентів та ідеї зараз</button>
  ${compMsg?`<div class="h2s" style="margin:10px 0 0;white-space:pre-wrap">${compMsg}</div>`:''}</div>`};
 document.addEventListener('input',e=>{const k=e.target.dataset?.crow;if(k!==undefined&&compRows)compRows[+k]=e.target.value});
 async function saveComps(){const parsed=compRows.flatMap(v=>String(v).split(/[\s,;]+/)).map(parseComp).filter(Boolean),bad=parsed.filter(x=>x.bad);if(bad.length){compMsg='Не розпізнав: '+bad.map(x=>esc(x.bad)).join(', ');return}
  const list=[...new Map(parsed.map(c=>[c.kind+c.value,c])).values()];const lines=[];
- for(const c of list){if(c.kind!=='ig'||!LC.ig){lines.push('✓ '+compShow(c));continue}
-  try{const j=await gget(`${LC.ig}?fields=${encodeURIComponent(`business_discovery.username(${c.value}){name,username,followers_count}`)}`);const b=j.business_discovery||{};c.name=b.name||'';lines.push(`✓ @${c.value}${b.name?' · '+esc(b.name):''}${b.followers_count?' · '+fmt(b.followers_count)+' підписників':''}`)}
-  catch(e){lines.push(`⚠ @${c.value}: Instagram не віддав профіль (${esc(e.message.slice(0,60))}). Шукатиму за ніком; надійніше дати посилання з бібліотеки реклами`)}}
+ const known=LC.known||{},unknown=[];
+ for(const c of list){if(c.kind==='ig'&&known[c.value]){c.ig=c.value;c.kind='fb';c.value=known[c.value]}
+  if(c.kind==='fb')lines.push('✓ '+compShow(c)+(c.ig?'':' (точний пошук)'));else{lines.push('• @'+c.value);unknown.push('@'+c.value)}}
+ if(unknown.length)lines.push(`\nДля ${unknown.join(', ')} шукатиму рекламу за назвою акаунта: може не знайти, якщо назва сторінки у Facebook інша. Точніше вставити посилання з бібліотеки реклами.`);
  L$.comps=list;await CS.set('comps',JSON.stringify(list));
  const j=await gget(`${ACT()}/adlabels?fields=id,name&limit=200`);for(const l of (j.data||[]).filter(l=>/^ai_comp /.test(l.name)))try{await fetch(`${GV}/${l.id}?access_token=${encodeURIComponent(L$.token)}`,{method:'DELETE'})}catch(e){}
  for(const c of list)await gpost(`${ACT()}/adlabels`,{name:`ai_comp ${c.kind}=${c.value}`});
- compRows=list.map(c=>c.kind==='ig'?'@'+c.value:c.value);
+ compRows=list.map(c=>c.ig?'@'+c.ig:c.kind==='ig'?'@'+c.value:c.value);
  const run=await ghRun();compMsg=lines.join('\n')+'\n\n'+(run===true?'🚀 Оновлення запущено. За 3–5 хвилин прийде повідомлення в Telegram, тоді перезапусти застосунок.':run?'⚠ '+esc(run):'Збережено. Їхня реклама з\'явиться після оновлення: щопонеділка або кнопкою Run workflow → update на GitHub. Щоб запускати звідси, додай ключ GitHub у ⚙.')}
 async function ghRun(){const t=await CS.get('gh_token');if(!t||!LC.repo)return false;
  try{const r=await fetch(`https://api.github.com/repos/${LC.repo}/actions/workflows/targetolog.yml/dispatches`,{method:'POST',headers:{Authorization:'Bearer '+t,Accept:'application/vnd.github+json'},body:JSON.stringify({ref:'main',inputs:{job:'update'}})});
@@ -923,6 +925,8 @@ async function act(d){
  // конкуренти
  if(d.cadd){compRows.push('');re0();return}
  if(d.csave){if(!tok()){go(keyView());return}compMsg='<span class="spin"></span> Перевіряю й зберігаю…';re0();try{await saveComps();okHap()}catch(e){compMsg='⚠ '+esc(e.message)}re0();return}
+ if(d.ghrun){if(!L$.gh){sheet(`<h3>Потрібен ключ GitHub</h3><div style="color:#c9c9d6;font-size:15px">Оновлення працює на GitHub, і щоб запускати його звідси, застосунку потрібен ключ GitHub (один раз):<br><br>1. github.com → фото профілю → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token.<br>2. Repository access: Only select → ${esc(LC.repo)}.<br>3. Permissions → Actions: Read and write.<br>4. Скопіюй ключ і встав у ⚙ → «Ключ GitHub».</div><button class="btn" data-x="1" data-set="1">Відкрити налаштування</button>`);return}
+  const r=await ghRun();toast(r===true?'🚀 Оновлення запущено, за 3–5 хв прийде в Telegram':'⚠ '+r);if(r===true)okHap();return}
  if(d.ghsave){const v=$('#ghk').value.trim();if(!v)return;await CS.set('gh_token',v);L$.gh=v;toast('✓ Ключ GitHub збережено');re(setView0());return}
  if(d.ghdel){await CS.del('gh_token');L$.gh='';re(setView0());return}
  // налаштування
@@ -939,7 +943,7 @@ async function act(d){
  if(d.open){try{tg.openLink(d.open)}catch(x){window.open(d.open)}return}
  if(d.q){const g=G[d.q];sheet(`<h3>${g[0]} <span class="pro">${g[1]}</span></h3><div style="color:#c9c9d6;font-size:15px">${g[2]}</div><button class="btn ghost" data-x="1">Зрозуміло</button>`);return}}
 const keepNc=()=>{if(!nc)return;if($('#nbudin'))nc.budget=Math.round(+$('#nbudin').value.replace(/\D/g,''))||nc.budget;if($('#nlink'))nc.link=$('#nlink').value.trim();if($('#nname'))nc.name=$('#nname').value.trim()};
-document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rgo],[data-rq],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-cadd],[data-csave],[data-ghsave],[data-ghdel],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
+document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rgo],[data-rq],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-cadd],[data-ghrun],[data-csave],[data-ghsave],[data-ghdel],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
  if(!t)return;if(t.dataset.q)e.stopPropagation();try{await act({...t.dataset})}catch(x){err(x)}});
 render();liveLoad();
 /* Telegram кешує сторінку: якщо на GitHub уже новіша збірка — перезавантажуємось */
@@ -964,7 +968,7 @@ def build(cfg, now, stats, winners, analyses, concepts):
                   "countries": launch.get("countries", ["UA"]), "link": launch.get("link", "https://www.instagram.com/"),
                   "tg_link": launch.get("tg_link", ""), "site_link": launch.get("site_link", ""), "privacy": launch.get("privacy_url", ""),
                   "v": meta.get("api_version", "v24.0"), "ai_model": launch.get("ai_model", "claude-sonnet-5-5"),
-                  "gemini_model": launch.get("gemini_model", "gemini-flash-latest")}
+                  "gemini_model": launch.get("gemini_model", "gemini-flash-latest"), "known": cfg.get("known_pages", {})}
                  if meta.get("ad_account_id") else None),
     }
     return APP.replace("__DATA__", json.dumps(data, ensure_ascii=False, default=str).replace("</", "<\\/"))

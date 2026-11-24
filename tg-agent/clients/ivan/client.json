@@ -125,5 +125,25 @@
   "exclude_rx": "курс|інтенсив|навчанн|навчи|вебінар|практикум|майстер-клас|академ|професі|study|university|school|школ|go ?it|it ?step|web academy|crm|срм|демо [a-z]|тариф|пробн\\w+ період|trial",
   "github": {
     "repo": "yahwehgracious/yahwehgracious"
+  },
+  "known_pages": {
+    "truorx": "1557806500739104",
+    "mychatbot.ua": "178899155313595",
+    "costcare.ai": "511526598702962",
+    "costcareai": "511526598702962",
+    "ayudenacom": "1444038135451834",
+    "amica.it": "1520558844844530",
+    "amica_integration": "1520558844844530",
+    "knopa_ai": "1361910320337275",
+    "braintixlabs": "1306975165825663",
+    "obliko_org": "961374987060231",
+    "skyworker_content": "1248130001724324",
+    "netpeak": "114552708565280",
+    "ringostat_global": "1687143084852039",
+    "ringostat": "116825641830836",
+    "sendpulse_ua": "1089169704432560",
+    "serhii.kharkivshchenko": "401855126348645",
+    "helennikulina": "532389049957406",
+    "matvieiev.vitaliy": "113711955120733"
   }
 }

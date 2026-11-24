@@ -51,6 +51,10 @@ def resolve(cfg, items):
             out.append({"label": it["value"], "page_id": it["value"], "names": set()})
             continue
         u, name = it["value"], None
+        pid = (cfg.get("known_pages") or {}).get(u)
+        if pid:  # відома відповідність Instagram → сторінка в бібліотеці реклами
+            out.append({"label": "@" + u, "page_id": pid, "names": set()})
+            continue
         if token and ig:
             try:
                 bd = _get(ig, token, v, fields=f"business_discovery.username({u}){{username,name}}").get("business_discovery", {})
