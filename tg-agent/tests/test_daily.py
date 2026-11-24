@@ -41,6 +41,10 @@ class T(unittest.TestCase):
         self.assertIn("4 заявки", txt)
         self.assertIn("Особисті характеристики", txt)
 
+    def test_norms_label(self):
+        self.assertEqual(daily.norms_from_labels([{"name": "інше"}, {"name": "ai_norms conv=112 lead=150 link=13"}]),
+                         {"target_cpl": 112.0, "target_lead": 150.0, "target_click": 13.0})
+
     def test_plural(self):
         self.assertEqual([daily.pl(n, daily.RES["conv"]) for n in (1, 3, 5, 11, 22, 25)],
                          ["переписка", "переписки", "переписок", "переписок", "переписки", "переписок"])

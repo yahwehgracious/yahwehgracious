@@ -119,6 +119,17 @@ def message(acc_name, y, w, ads, recs, kpi):
     return "\n".join(lines)
 
 
+def norms_from_labels(labels):
+    """Норми, які ти задав у застосунку, лежать міткою «ai_norms conv=… lead=… link=…» у кабінеті Meta."""
+    for lab in labels:
+        n = lab.get("name", "")
+        if n.startswith("ai_norms "):
+            kv = dict(x.split("=", 1) for x in n.split()[1:] if "=" in x)
+            keys = {"conv": "target_cpl", "lead": "target_lead", "link": "target_click"}
+            return {keys[k]: float(v) for k, v in kv.items() if k in keys and v.replace(".", "", 1).isdigit()}
+    return {}
+
+
 def _get(path, token, v, **params):
     params["access_token"] = token
     return http(f"https://graph.facebook.com/{v}/{path}?{urllib.parse.urlencode(params)}", timeout=60)
@@ -137,8 +148,9 @@ def run(cfg, now=None, send=True):
     sins = {r["adset_id"]: px(r) for r in _get(f"{A}/insights", token, v, level="adset", date_preset="last_7d", fields="adset_id," + INS, limit=100)["data"]}
     tot = lambda preset: px((_get(f"{A}/insights", token, v, date_preset=preset, fields=INS)["data"] or [{}])[0])  # noqa: E731
     y, w = tot("yesterday"), tot("last_7d")
-    recs = evaluate(ads, sets, ins, sins, cfg["kpi"], now)
-    txt = message(acc.get("name", ""), y, w, ads, recs, cfg["kpi"])
+    kpi = {**cfg["kpi"], **norms_from_labels(_get(f"{A}/adlabels", token, v, fields="name", limit=100).get("data", []))}
+    recs = evaluate(ads, sets, ins, sins, kpi, now)
+    txt = message(acc.get("name", ""), y, w, ads, recs, kpi)
     log(txt)
     t = cfg.get("telegram") or {}
     if send and t.get("chat_id"):

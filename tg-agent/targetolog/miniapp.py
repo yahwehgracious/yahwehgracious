@@ -4,6 +4,7 @@
 Статично в сторінку вшиті лише конкуренти та ідеї, які щотижня оновлює пайплайн (GitHub Actions).
 Ключі (Meta, ШІ) зберігаються в Telegram CloudStorage користувача й нікуди більше не йдуть."""
 import json
+from datetime import datetime, timezone
 
 APP = r"""<!doctype html><html lang="uk"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
@@ -134,7 +135,7 @@ const G={
  res:['Результати','Results','Те, за що ти платиш: переписки в Direct, заявки з форми або переходи в Telegram/на сайт. Залежить від мети кампанії.'],
  cpr:['Ціна результату','Cost per result','Скільки коштує одна переписка, заявка чи перехід. Головна цифра: чим менша, тим краще. Для переписок таргетологи кажуть CPL або cost per conversation.'],
  cl:['Клієнти','Qualified / CAC','Переписки, які дійшли до дзвінка чи оплати. Їх відмічаєш ти (або вони підтягуються з таблиці). Саме вони показують, чи окупається реклама.'],
- norm:['Норма','Target CPA','Скільки максимум ти готовий платити за один результат. Переписка: '+D.cur+K.target_cpl+', заявка: '+D.cur+K.target_lead+', перехід: '+D.cur+K.target_click+'.'],
+ norm:['Норма','Target CPA','Скільки максимум можна платити за один результат, щоб реклама окупалась. Рахується з твого середнього чека, частки на рекламу і того, скільки переписок стають клієнтами. Задається в ⚙ → Норми.'],
  freq:['Частота','Frequency','Скільки разів одна людина вже бачила рекламу. Більше 3 разів: люди втомлюються, реагують рідше, результат дорожчає.'],
  ctr:['Клікабельність','CTR','Скільки людей зі 100, що побачили рекламу, клікнули на неї. 1% і вище для цієї ніші нормально.'],
  cpm:['Ціна 1000 показів','CPM','Скільки коштує показати рекламу тисячі людей. Росте, коли аудиторія вузька або конкуренція велика.'],
@@ -160,7 +161,7 @@ const CSj=async(k,d)=>{try{return JSON.parse(await CS.get(k)||'null')??d}catch(e
 
 /* ───── Meta Graph API ───── */
 const GV=`https://graph.facebook.com/${LC.v||'v24.0'}`;
-const L$={boot:true,token:'',ai:'',loading:false,acc:null,err:null,camps:[],sets:[],ads:[],ins:{},sins:{},crs:[],marks:[],sheet:[],sheetErr:null,sp90:0,cfg:{},ideas:[],rep:{},links:{},forms:null,leads:{}};
+const L$={norms:null,nin:null,boot:true,token:'',ai:'',loading:false,acc:null,err:null,camps:[],sets:[],ads:[],ins:{},sins:{},crs:[],marks:[],sheet:[],sheetErr:null,sp90:0,cfg:{},ideas:[],rep:{},links:{},forms:null,leads:{}};
 const meta=async(r)=>{const j=await r.json();if(j.error)throw new Error(j.error.error_user_msg||j.error.error_user_title||j.error.message);return j};
 const gget=(p,t)=>fetch(`${GV}/${p}${p.includes('?')?'&':'?'}access_token=${encodeURIComponent(t||L$.token)}`).then(meta);
 const gpost=(p,params,t)=>fetch(`${GV}/${p}`,{method:'POST',body:new URLSearchParams({...params,access_token:t||L$.token})}).then(meta);
@@ -176,10 +177,11 @@ const INS='spend,impressions,clicks,inline_link_clicks,frequency,reach,actions';
 
 /* ───── Мети кампаній ───── */
 const GOALS={
- direct:{name:'Переписки в Direct',ico:'💬',res:'conv',obj:'OUTCOME_ENGAGEMENT',desc:'Людина натискає «Написати» й одразу потрапляє у твій Direct. Найпростіше для послуг.',norm:K.target_cpl},
- lead:{name:'Заявки через форму',ico:'📝',res:'lead',obj:'OUTCOME_LEADS',desc:'Форма відкривається всередині Instagram: ім\'я й телефон заповнені автоматично. Заявки бачиш тут же.',norm:K.target_lead},
- tg:{name:'Переходи в Telegram',ico:'✈️',res:'link',obj:'OUTCOME_TRAFFIC',desc:'Кнопка веде в твій Telegram чи бота. Meta шукає тих, хто клікає.',norm:K.target_click},
- site:{name:'Переходи на сайт',ico:'🌐',res:'link',obj:'OUTCOME_TRAFFIC',desc:'Кнопка веде на сайт чи лендинг. Meta шукає тих, хто клікає.',norm:K.target_click}};
+ direct:{name:'Переписки в Direct',ico:'💬',res:'conv',obj:'OUTCOME_ENGAGEMENT',desc:'Людина натискає «Написати» й одразу потрапляє у твій Direct. Найпростіше для послуг.',get norm(){return NR('conv')}},
+ lead:{name:'Заявки через форму',ico:'📝',res:'lead',obj:'OUTCOME_LEADS',desc:'Форма відкривається всередині Instagram: ім\'я й телефон заповнені автоматично. Заявки бачиш тут же.',get norm(){return NR('lead')}},
+ tg:{name:'Переходи в Telegram',ico:'✈️',res:'link',obj:'OUTCOME_TRAFFIC',desc:'Кнопка веде в твій Telegram чи бота. Meta шукає тих, хто клікає.',get norm(){return NR('link')}},
+ site:{name:'Переходи на сайт',ico:'🌐',res:'link',obj:'OUTCOME_TRAFFIC',desc:'Кнопка веде на сайт чи лендинг. Meta шукає тих, хто клікає.',get norm(){return NR('link')}}};
+const NR=r=>(L$.norms||{})[r]||{conv:K.target_cpl,lead:K.target_lead,link:K.target_click}[r];
 const RES={conv:['переписка','переписки','переписок','Ціна переписки'],lead:['заявка','заявки','заявок','Ціна заявки'],link:['перехід','переходи','переходів','Ціна переходу']};
 const rn=(n,r)=>`${fmt(n)} ${pl(n,RES[r])}`;
 const goalOfSet=s=>{if(!s)return'direct';const og=s.optimization_goal;if(og==='LEAD_GENERATION'||og==='QUALITY_LEAD')return'lead';
@@ -205,7 +207,7 @@ async function addMark(m){const key=mkKey(new Date());const arr=await CSj(key,[]
 
 async function liveLoad(){if(!LC.acc){render();return}
  L$.token=await CS.get('meta_token')||'';L$.ai=await CS.get('ai_key')||'';L$.links={tg:LC.tg_link,site:LC.site_link,privacy:LC.privacy,csv:'',...await CSj('links',{})};
- await loadCrs();await loadCfg();await loadMarks();await loadIdeas();
+ await loadCrs();await loadCfg();await loadMarks();await loadIdeas();L$.norms=await CSj('norms',null);L$.nin=await CSj('norms_in',null);
  if(!L$.token){L$.boot=false;render();return}
  L$.loading=true;render();
  try{const A=ACT();
@@ -268,10 +270,11 @@ async function ai(system,user,img){const p=aiProv();if(!p)throw new Error('До�
   body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts}],generationConfig:{responseMimeType:'application/json'}})});
  const j=await r.json();if(j.error)throw new Error(j.error.message);return (j.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join('')}
 const pj=t=>{t=String(t).replace(/```(json)?/g,'');const a=t.indexOf('{');return JSON.parse(t.slice(a,t.lastIndexOf('}')+1))};
-const SYS=`Ти досвідчений таргетолог і копірайтер для Meta Ads (Instagram/Facebook) в Україні. Пишеш лише українською, жива розмовна мова, без канцеляриту, без AI-кліше й без емодзі-спаму.
+const SYSf=()=>`Ти досвідчений таргетолог і копірайтер для Meta Ads (Instagram/Facebook) в Україні. Пишеш лише українською, жива розмовна мова, без канцеляриту, без AI-кліше й без емодзі-спаму.
 Правила Meta: не стверджуй особисті характеристики читача («ти власник бізнесу?», «у тебе проблеми з…»), не обіцяй гарантованих результатів, не вигадуй цифр і кейсів, яких нема в даних.
 Продукт: ${D.product}
 Ніша: ${D.niche}
+${SKILLS}
 Відповідай ТІЛЬКИ валідним JSON без пояснень.`;
 function aiCtx(){const comp=D.winners.slice(0,6).map(w=>`- ${w.page_name}, ${w.days} дн: «${String(w.a?.hook?.text||w.text||'').slice(0,140)}»${w.a?.steal_this?' → взяти: '+w.a.steal_this:''}`).join('\n');
  const ours=L$.ads.map(a=>{const g=GOALS[goalOfAd(a)],i=L$.ins[a.id];return i&&i.spend?{n:a.name,b:(a.creative?.body||'').slice(0,160),c:cost(i,g.res),r:g.res,s:i.spend}:null}).filter(Boolean).sort((a,b)=>(a.c??1e9)-(b.c??1e9));
@@ -354,7 +357,7 @@ const clientsCard=()=>{if(!tok()||(!L$.sp90&&!L$.marks.length&&!L$.sheet.length&
  <button class="btn ghost" data-mark="1">＋ Відмітити клієнта</button>`};
 V.home=()=>{if(!LC.acc)return top()+`<div class="card">Кабінет не налаштований.</div>`;if(waiting())return top()+waitCard();
  if(!tok())return top()+setupCard()+`<div class="card hero"><div class="lab">Твоя реклама</div><div style="font-size:22px;font-weight:800;margin:6px 0">${L$.loading?'Перевіряю кабінет…':L$.token?'Meta не відповіла':'Кабінет не підключено'}</div><div class="h2s" style="margin:0">${L$.err?esc(L$.err):'Встав ключ Meta, і тут з\'являться витрати, ціна результату й рішення.'}</div></div>`;
- return top('Останні 7 днів')+setupCard()+(L$.ads.length?heroCard():'')+recCard()+clientsCard()+(L$.ads.length?'':`<h2>Поки готуєш креативи</h2><div class="card" data-tab2="ideas" style="cursor:pointer"><b>${D.concepts.length+L$.ideas.length} готових сценаріїв і ${CG.length} конкурентів</b><div class="h2s" style="margin:4px 0 0">у вкладці «Ідеї» ›</div></div>`)};
+ return top('Останні 7 днів')+setupCard()+(L$.ads.length?heroCard():'')+`<div class="item" data-askv="1"><div class="ico i-ai">🧠</div><div class="tx"><b>Спитати ШІ-таргетолога</b><small>${L$.norms?'Що змінити, чому дорого, що запускати':'Почни з норм: скільки можна платити за переписку'}</small></div><span class="chev">›</span></div>`+recCard()+clientsCard()+(L$.ads.length?'':`<h2>Поки готуєш креативи</h2><div class="card" data-tab2="ideas" style="cursor:pointer"><b>${D.concepts.length+L$.ideas.length} готових сценаріїв і ${CG.length} конкурентів</b><div class="h2s" style="margin:4px 0 0">у вкладці «Ідеї» ›</div></div>`)};
 
 /* ───── Реклама: кампанії + креативи ───── */
 const campItem=c=>{const g=GOALS[goalOfCamp(c.id)],i=campIns(c.id),cpr=cost(i,g.res),v=c.effective_status==='ACTIVE'?verd(cpr,g.norm,i.spend):'learn',b=setsOf(c.id).filter(s=>s.effective_status==='ACTIVE').reduce((a,s)=>a+(dB(s)||0),0);
@@ -425,7 +428,8 @@ const newCampView=()=>()=>{const n=nc,g=GOALS[n.goal];
  ${n.goal==='tg'||n.goal==='site'?`<div class="card"><div class="l">Куди веде кнопка</div><input id="nlink" class="in" value="${esc(n.link||'')}" placeholder="${n.goal==='tg'?'https://t.me/…':'https://…'}"></div>`:''}
  ${n.goal==='lead'?`<div class="card"><div class="l">Форма заявки</div><div id="nforms">${formsHtml()}</div></div>`:''}
  <div class="card"><div class="l">2 · Бюджет на день ${q('budget')}</div><div class="chips">${[50,100,135,200,300].map(v=>`<button class="${n.budget==v?'on':''}" data-nbud="${v}">${v} ₴</button>`).join('')}</div>
-  <div class="h2s" style="margin:8px 0 0">≈ ${usd(n.budget*30.4)} на місяць. Карта списується в Meta.</div></div>
+  <div style="display:flex;align-items:center;gap:8px;margin-top:10px"><input id="nbudin" class="in" inputmode="numeric" value="${n.budget}" style="margin:0;max-width:140px"><span style="color:var(--mut)">₴ на день, свою суму</span></div>
+  <div class="h2s" id="nbm" style="margin:8px 0 0">≈ ${usd(n.budget*30.4)} на місяць. Мінімум ${MINB} ₴. Карта списується в Meta.</div></div>
  <div class="card"><div class="l">3 · Кому показувати</div><div class="item" data-naud="1" style="margin:6px 0 0;padding:12px"><div class="tx"><b>${esc(audSum(n.aud))}</b><small>змінити місто, вік, стать</small></div><span class="chev">›</span></div></div>
  <div class="card"><div class="l">4 · Де показувати ${q('place')}</div>${placeHtml(n.aud,n.goal)}</div>
  <div class="card"><div class="l">Назва (необов'язково)</div><input id="nname" class="in" value="${esc(n.name||'')}" placeholder="${esc(g.name)}"></div>
@@ -444,7 +448,7 @@ function setParams(goal,name,cid,budget,targeting){const p={name,campaign_id:cid
  if(goal==='direct')Object.assign(p,{destination_type:'INSTAGRAM_DIRECT',optimization_goal:'CONVERSATIONS',promoted_object:JSON.stringify({page_id:LC.page})});
  else if(goal==='lead')Object.assign(p,{destination_type:'ON_AD',optimization_goal:'LEAD_GENERATION',promoted_object:JSON.stringify({page_id:LC.page})});
  else Object.assign(p,{destination_type:'WEBSITE',optimization_goal:'LINK_CLICKS'});return p}
-async function createCamp(n){if((n.goal==='tg'||n.goal==='site')&&!/^https?:\/\//.test(n.link||''))throw new Error('Вкажи посилання, що починається з https://');
+async function createCamp(n){if(!(n.budget>=MINB))throw new Error(`Бюджет мінімум ${MINB} ₴ на день`);if((n.goal==='tg'||n.goal==='site')&&!/^https?:\/\//.test(n.link||''))throw new Error('Вкажи посилання, що починається з https://');
  if(n.goal==='lead'&&!n.form)throw new Error('Обери форму заявки');
  let form=n.form;if(form==='new')form=await createForm();
  const g=GOALS[n.goal],name=n.name||g.name;
@@ -459,13 +463,14 @@ const setView=id=>()=>{const s=L$.sets.find(x=>x.id===id);if(!s)return'';const g
  return `<div class="card hero"><div class="lab">${g.ico} ${esc(s.name)}</div>
  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 4px">
   <button class="btn ghost" data-bstep="-25" style="width:58px;margin:0;font-size:22px">−</button>
-  <div style="text-align:center"><div class="big" style="margin:0">${usd(budVal)}</div><div style="color:var(--mut);font-size:13px">на день · ≈ ${usd(budVal*30.4)} на місяць</div></div>
+  <div style="text-align:center"><div class="big" id="bbig" style="margin:0">${usd(budVal)}</div><div id="bmon" style="color:var(--mut);font-size:13px">на день · ≈ ${usd(budVal*30.4)} на місяць</div></div>
   <button class="btn ghost" data-bstep="25" style="width:58px;margin:0;font-size:22px">+</button></div>
- <div class="chips" style="justify-content:center;margin-top:12px">${[50,100,135,200,300,500].map(v=>`<button class="${budVal==v?'on':''}" data-bset="${v}">${v} ₴</button>`).join('')}</div></div>
+ <div class="chips" style="justify-content:center;margin-top:12px">${[50,100,135,200,300,500].map(v=>`<button class="${budVal==v?'on':''}" data-bset="${v}">${v} ₴</button>`).join('')}</div>
+ <div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:12px"><span style="color:var(--mut)">Своя сума</span><input id="bin" class="in" inputmode="numeric" value="${budVal}" style="margin:0;max-width:120px;text-align:center"><span style="color:var(--mut)">₴</span></div></div>
  <div class="mg"><div class="m"><span>Зараз</span><b>${usd(cur)}</b></div><div class="m"><span>Зміна</span><b style="color:var(--${ch>0?'good':ch<0?'bad':'ink'})">${ch>0?'+':''}${ch}%</b></div><div class="m"><span>Витрачено за 7 дн</span><b>${usd(si.spend)}</b></div><div class="m"><span>${RES[g.res][3]} ${q('cpr')}</span><b>${usd(cost(si,g.res))}</b></div></div>
  ${Math.abs(ch)>20?`<div class="hint" style="cursor:default"><div class="ico i-mid">!</div><div class="tx" style="flex:1"><b>Зміна більше ніж на 20%</b><small style="display:block;color:var(--mut);margin-top:3px">Meta може знову почати навчання, і кілька днів ціна результату стрибатиме. Безпечніше міняти поступово, не частіше ніж раз на 3 дні.</small></div></div>`:''}
  ${budVal<MINB?`<p class="h2s" style="color:var(--bad)">Мінімум у твоєму кабінеті ${MINB} ₴ на день.</p>`:''}
- <button class="btn" data-bsave="${id}" ${budVal<MINB||budVal==cur?'disabled':''}>Застосувати бюджет</button>
+ <button class="btn" id="bsv" data-bsave="${id}" ${budVal<MINB||budVal==cur?'disabled':''}>Застосувати бюджет</button>
  <h2>Кому показувати</h2>${rt?`<div class="card">Людям, які за останній рік взаємодіяли з твоїм Instagram ${q('rt')}<div class="h2s" style="margin:6px 0 0">Географія: ${esc(audSum(sd.a).split(' · ')[0])}</div></div>`:audHtml(sd.a)}
  <h2>Де показувати ${q('place')}</h2><div class="card">${placeHtml(sd.a,gk)}</div>
  <button class="btn" data-tsave="${id}">Зберегти аудиторію й плейсменти</button>
@@ -481,6 +486,9 @@ const audHtml=a=>`<div class="card"><div class="l">Де</div>
   <div class="h2s" style="margin:8px 0 0">${a.adv?'Meta сама шукає тих, хто реагує (Advantage+ audience). Для малих бюджетів зазвичай найкраще.':'Показуємо лише вказаному віку й статі.'}</div>
   ${!a.adv?`<div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap"><span style="color:var(--mut)">Вік</span><button class="btn ghost" data-aage="min:-1" style="width:42px;margin:0;padding:8px">−</button><b>${a.ageMin}</b><button class="btn ghost" data-aage="min:1" style="width:42px;margin:0;padding:8px">+</button><span style="color:var(--mut)">до</span><button class="btn ghost" data-aage="max:-1" style="width:42px;margin:0;padding:8px">−</button><b>${a.ageMax}</b><button class="btn ghost" data-aage="max:1" style="width:42px;margin:0;padding:8px">+</button></div>
   <div class="chips" style="margin-top:10px"><button class="${!a.gender?'on':''}" data-agen="0">Усі</button><button class="${a.gender===1?'on':''}" data-agen="1">Чоловіки</button><button class="${a.gender===2?'on':''}" data-agen="2">Жінки</button></div>`:''}</div>`;
+document.addEventListener('input',e=>{const v=Math.round(+String(e.target.value).replace(/\D/g,''))||0;
+ if(e.target.id==='bin'){budVal=v;$('#bbig').textContent=usd(v);$('#bmon').textContent=`на день · ≈ ${usd(v*30.4)} на місяць`;const s=L$.sets.find(x=>x.id===sd?.id);const b=$('#bsv');if(b)b.disabled=v<MINB||(s&&v==dB(s))}
+ if(e.target.id==='nbudin'){nc.budget=v;$('#nbm').textContent=`≈ ${usd(v*30.4)} на місяць. Мінімум ${MINB} ₴. Карта списується в Meta.`}});
 let cityT=null;
 document.addEventListener('input',e=>{if(e.target.id!=='acity')return;clearTimeout(cityT);const v=e.target.value.trim();if(v.length<2)return;
  cityT=setTimeout(async()=>{try{const r=await gget(`search?type=adgeolocation&location_types=${encodeURIComponent('["city"]')}&country_code=UA&q=${encodeURIComponent(v)}&limit=6`);
@@ -705,32 +713,78 @@ const setView0=()=>()=>`<h2 style="margin-top:6px">Налаштування</h2>
   <div class="h2s" style="margin:10px 0 0">Сайт для кампаній «Переходи на сайт»</div><input id="lsite" class="in" value="${esc(L$.links.site||'')}" placeholder="https://…">
   <div class="h2s" style="margin:10px 0 0">Політика конфіденційності (обов'язкова для лід-форм)</div><input id="lpriv" class="in" value="${esc(L$.links.privacy||'')}"></div>
  <button class="btn" data-lsave="1">Зберегти</button>
- <div class="card" style="margin-top:12px"><div class="l">Норми ${q('norm')}</div>Переписка ${usd(K.target_cpl)} · заявка ${usd(K.target_lead)} · перехід ${usd(K.target_click)}<div class="h2s" style="margin:6px 0 0">За ними ШІ вирішує, що дорого, а що в нормі. Ті самі норми використовує щоденне повідомлення.</div></div>
+ <div class="item" data-norms="1" style="margin-top:12px"><div class="ico i-ai">🎯</div><div class="tx"><b>Норми ціни результату</b><small>Переписка ${usd(NR('conv'))} · заявка ${usd(NR('lead'))} · перехід ${usd(NR('link'))}${L$.norms?'':' · стандартні, задай свої'}</small></div><span class="chev">›</span></div>
  <button class="btn ghost" data-how="1">Як працює ШІ-таргетолог</button>`;
 const keyView=()=>()=>`<h2 style="margin-top:6px">Ключ Meta</h2><div class="card"><div class="h2s" style="margin:0 0 10px">Встав ключ доступу системного користувача targetolog. Він зберігається тільки в твоєму Telegram і використовується лише цим застосунком.</div>
  <textarea id="mk" class="in mono" rows="4" placeholder="EAA…"></textarea></div><button class="btn" data-savekey="1">Підключити</button>`;
 const howView=()=>`<h2 style="margin-top:6px">Як працює ШІ-таргетолог</h2><p class="h2s">Від тебе креативи й «так» на рішення. Решту робить сам.</p>
 <div class="card"><div class="flowmap">
-<div class="fs"><div class="dotc">🔍</div><b>Щопонеділка дивиться конкурентів</b><small>Збирає рекламу з відкритої бібліотеки Meta, знаходить ту, що крутиться тижнями, і розбирає, чому вона окупається.</small></div>
-<div class="fs"><div class="dotc">✍️</div><b>Пише сценарії</b><small>Нові ідеї для зйомки з'являються у вкладці «Ідеї». Можна попросити ще, з урахуванням твоєї статистики.</small></div>
-<div class="fs"><div class="dotc">🚀</div><b>Ти додаєш креатив, ШІ запускає</b><small>Обираєш кампанію (переписки, заявки чи переходи), застосунок сам створює оголошення в Meta. Можна кілька текстів, щоб порівняти.</small></div>
-<div class="fs"><div class="dotc">📊</div><b>Щоранку звіт у Telegram</b><small>Витрати, ціна результату, відхилені оголошення й рішення: що вимкнути, де додати бюджет.</small></div>
-<div class="fs"><div class="dotc">✅</div><b>Ти вирішуєш</b><small>Без твого «так» бюджет не змінюється. Нову рекламу ШІ не чіпає 3 дні, бюджет додає по 20% не частіше ніж раз на 3 дні.</small></div>
+<div class="fs"><div class="dotc">🔍</div><b>Щопонеділка дивиться конкурентів</b><small>О 06:13 збирає рекламу з бібліотеки Meta за запитами твоєї ніші, відсіює чуже (курси, CRM, інші ніші) і залишає ту, що крутиться 2+ тижні, тобто окупається. ШІ (Claude, а якщо він недоступний, Gemini) розбирає, чим вона чіпляє і що взяти собі. Після оновлення пише тобі в Telegram.</small></div>
+<div class="fs"><div class="dotc">✍️</div><b>Пише сценарії</b><small>Нові ідеї для зйомки з'являються у вкладці «Ідеї». Кнопкою можна попросити ще три, з урахуванням твоєї статистики.</small></div>
+<div class="fs"><div class="dotc">🎯</div><b>Кампанії під різні цілі</b><small>Переписки в Direct, заявки через форму, переходи в Telegram чи на сайт. У кожної свій бюджет, аудиторія, плейсменти, за бажанням ретаргет на тих, хто тебе вже знає.</small></div>
+<div class="fs"><div class="dotc">🚀</div><b>Креатив за хвилину</b><small>Фото чи відео (4:5 і 9:16), до трьох текстів. ШІ напише тексти й розбере креатив до запуску, зокрема ризик відхилення Meta. Запущений текст можна змінити, статистика збережеться.</small></div>
+<div class="fs"><div class="dotc">📊</div><b>Щоранку звіт у Telegram</b><small>О 07:47: вчора й за тиждень, ціна результату проти норми, відхилені оголошення з причиною, рішення: що вимкнути, де додати бюджет. Детальний звіт по днях, віку, статі й плейсментах у вкладці «Звіт».</small></div>
+<div class="fs"><div class="dotc">💳</div><b>Рахує справжніх клієнтів</b><small>Дзвінки й оплати з таблиці клієнтів або ручних відміток. Видно ціну клієнта й скільки повертає кожна гривня реклами.</small></div>
+<div class="fs"><div class="dotc">✅</div><b>Ти вирішуєш</b><small>Без твого «так» нічого не змінюється. Нову рекламу ШІ не чіпає 3 дні, бюджет додає по 20% не частіше ніж раз на 3 дні. Ключі Meta та ШІ зберігаються лише у твоєму Telegram.</small></div>
 </div></div><button class="btn" data-back="1">Зрозуміло</button>`;
+
+/* ───── Норми: юніт-економіка замість «60 грн з повітря» ───── */
+const NIN0={check:15000,share:15,chat:10,lead:7,click:12};
+const calcN=i=>{const cac=i.check*i.share/100,conv=cac*i.chat/100;return {cac,conv:Math.round(conv),lead:Math.round(cac*i.lead/100),link:Math.max(1,Math.round(conv*i.click/100))}};
+let nd=null;
+const normsView=()=>()=>{const i=nd,c=calcN(i),f=(k,l,h,suf)=>`<div class="sec"><div class="l">${l}</div><div style="display:flex;align-items:center;gap:8px"><input class="in" data-nin="${k}" inputmode="numeric" value="${i[k]}" style="margin:0;max-width:130px"><span style="color:var(--mut)">${suf}</span></div><div class="h2s" style="margin:4px 0 0">${h}</div></div>`;
+ return `<h2 style="margin-top:6px">Норми ціни результату</h2><p class="h2s">Таргетолог не бере норму з повітря: рахує, скільки можна віддати за одного клієнта, і множить на те, яка частка переписок стає клієнтами ${q('norm')}</p>
+ <div class="card">${f('check','Середній чек','Скільки в середньому платить клієнт за проєкт.','₴')}
+ ${f('share','Скільки з чека готовий віддати на рекламу','Зазвичай 10–20% для послуг. Більше, і реклама з\'їдає прибуток.','%')}
+ ${f('chat','Зі 100 переписок стають клієнтами','Якщо не знаєш, почни з 5–10%. Потім уточниш із таблиці клієнтів.','%')}
+ ${f('lead','Зі 100 заявок з форми стають клієнтами','Заявки з форми зазвичай холодніші за переписки.','%')}
+ ${f('click','Зі 100 переходів пишуть тобі','Для Telegram чи сайту зазвичай 5–15%.','%')}</div>
+ <div class="card hero" id="nres">${nres(c)}</div>
+ <button class="btn" data-nsave="1">Зберегти норми</button>
+ <button class="btn ghost" data-nai="1">${L$.ai?'✨ ШІ перевірить, чи реалістично для ніші':'✨ Перевірка ШІ: додай ключ у налаштуваннях'}</button><div id="naiout"></div>
+ <p class="h2s" style="margin-top:10px">Ті самі норми бере щоранковий звіт у Telegram.</p>`};
+const nres=c=>`<div class="lab">Можна віддати за одного клієнта <span class="pro">max CAC</span></div><div class="big">${usd(c.cac)}</div>
+ <div class="mg" style="margin:10px 0 0"><div class="m"><span>Переписка</span><b>${usd(c.conv)}</b></div><div class="m"><span>Заявка</span><b>${usd(c.lead)}</b></div><div class="m"><span>Перехід</span><b>${usd(c.link)}</b></div></div>
+ <div class="h2s" style="margin:8px 0 0">Переписка = ${usd(c.cac)} × ${nd.chat}%. Дорожче за це, і реклама не окупається.</div>`;
+document.addEventListener('input',e=>{const k=e.target.dataset?.nin;if(!k||!nd)return;nd[k]=+String(e.target.value).replace(/[^\d.]/g,'')||0;const el=$('#nres');if(el)el.innerHTML=nres(calcN(nd))});
+async function saveNorms(){const c=calcN(nd);L$.norms={conv:c.conv,lead:c.lead,link:c.link};L$.nin=nd;await CS.set('norms',JSON.stringify(L$.norms));await CS.set('norms_in',JSON.stringify(nd));
+ /* щоб щоранковий звіт на GitHub бачив ті самі норми, зберігаємо їх міткою в кабінеті Meta */
+ if(tok())try{const j=await gget(`${ACT()}/adlabels?fields=id,name&limit=100`);for(const l of (j.data||[]).filter(l=>/^ai_norms /.test(l.name)))try{await fetch(`${GV}/${l.id}?access_token=${encodeURIComponent(L$.token)}`,{method:'DELETE'})}catch(e){}
+  await gpost(`${ACT()}/adlabels`,{name:`ai_norms conv=${c.conv} lead=${c.lead} link=${c.link}`})}catch(e){toast('Норми збережено тут, але не в Meta: '+e.message.slice(0,60))}}
+
+/* ───── Знання таргетолога, які ШІ застосовує в усіх відповідях ───── */
+const SKILLS=`Правила роботи таргетолога (застосовуй, коли доречно):
+- Рішення приймай за ціною результату проти норми, а не за CTR чи охопленням. Норма = середній чек × частка на рекламу × конверсія в клієнта.
+- Перші 3 дні та ~50 результатів оголошення в навчанні: не вимикати й не міняти без потреби.
+- Вимикати: витрачено ≥2 норми без результату, або ціна >1,5 норми після ≥3 результатів. Єдине оголошення в групі не вимикати без заміни.
+- Бюджет міняти не більше ніж на 20% і не частіше ніж раз на 3 дні, інакше знову навчання.
+- Малий бюджет (до ~300 ₴/день): одна кампанія, одна група, Advantage+ аудиторія й автоплейсменти, 2–4 креативи. Не дробити на багато груп.
+- Креатив важливіший за таргетинг: тестуй різні кути (біль, результат, кейс, ціна, процес), а не кольори кнопки. Хук у перші 3 секунди.
+- Частота >3 за тиждень означає втому креативу. CPM росте: аудиторія вузька або креатив слабкий.
+- Переписки в Direct дешевші, але холодніші за заявки з форми; переходи найдешевші й найхолодніші. Порівнюй за ціною клієнта, а не результату.
+- Ретаргет на тих, хто взаємодіяв з профілем, зазвичай дає найдешевших клієнтів, але аудиторія мала.
+- Правила Meta: без звертань до особистих рис, без «до/після», без гарантій результату.`;
+let askQ='',askA='',askBusy=false;
+const askView=()=>()=>`<h2 style="margin-top:6px">Спитати таргетолога</h2><p class="h2s">ШІ бачить твої кампанії, витрати за 7 днів, норми й конкурентів і відповідає за правилами таргетолога.</p>
+ <div class="chips" style="margin-bottom:10px">${['Що зараз змінити в рекламі?','Чому дорогі переписки?','Яку кампанію запустити першою?','Скільки креативів тестувати?'].map(x=>`<button data-askq="${esc(x)}">${x}</button>`).join('')}</div>
+ <div class="card"><textarea id="askt" class="in" rows="3" placeholder="Твоє питання">${esc(askQ)}</textarea><button class="btn sm" data-ask="1">${askBusy?'<span class="spin"></span> Думаю…':'Спитати'}</button></div>
+ ${askA?`<div class="card" style="white-space:pre-wrap">${esc(askA)}</div>`:''}`;
+function acctCtx(){const camps=L$.camps.map(c=>{const g=GOALS[goalOfCamp(c.id)],i=campIns(c.id),b=setsOf(c.id).reduce((a,s)=>a+(dB(s)||0),0);return `- «${c.name}» (${g.name}, ${c.effective_status}, ${b} ₴/день): витрати 7 дн ${Math.round(i.spend)} ₴, ${i[g.res]} ${RES[g.res][2]}, ціна ${cost(i,g.res)?Math.round(cost(i,g.res))+' ₴':'—'}, норма ${g.norm} ₴`}).join('\n')||'- кампаній ще нема';
+ const all=[...L$.marks,...L$.sheet];return `Кабінет:\n${camps}\nКреативів у застосунку: ${L$.crs.length}, оголошень у Meta: ${L$.ads.length}. За 90 днів витрачено ${Math.round(L$.sp90)} ₴, дзвінків ${all.filter(m=>m.t==='call').length}, оплат ${all.filter(m=>m.t==='paid').length}. Норми: переписка ${NR('conv')} ₴, заявка ${NR('lead')} ₴, перехід ${NR('link')} ₴.`}
 
 /* ───── ШІ-дії ───── */
 async function aiTexts(){keepDraft();const gk=draft.camp?goalOfCamp(draft.camp):(L$.camps[0]?goalOfCamp(L$.camps[0].id):'direct');
- const t=await ai(SYS,`${aiCtx()}\n\nНапиши 3 різні варіанти тексту оголошення для Instagram. Мета: ${GOALS[gk].name}.${draft.topic?' Про що реклама: '+draft.topic+'.':''}
+ const t=await ai(SYSf(),`${aiCtx()}\n\nНапиши 3 різні варіанти тексту оголошення для Instagram. Мета: ${GOALS[gk].name}.${draft.topic?' Про що реклама: '+draft.topic+'.':''}
 Кожен варіант з іншим хуком (перше речення) і кутом подачі. 300–600 символів, абзаци, в кінці заклик до дії під мету (${gk==='direct'?'написати в Direct':gk==='lead'?'залишити заявку':'перейти за посиланням'}).
 Формат: {"headline":"заголовок до 40 символів","variants":["текст A","текст B","текст C"]}`);const j=pj(t);
  Object.assign(draft,{headline:draft.headline||j.headline||'',text:j.variants[0]||'',text2:j.variants[1]||'',text3:j.variants[2]||''})}
 async function aiReview(c){let img=null;if(c.kind==='image'&&c.thumb)img={url:c.thumb};else if(c.thumb)img={url:c.thumb};
- const t=await ai(SYS,`${aiCtx()}\n\nРозбери мій креатив перед запуском${img?' (картинка/кадр додано)':''}. Тип: ${c.kind==='video'?'відео (бачиш лише обкладинку)':'фото'}.
+ const t=await ai(SYSf(),`${aiCtx()}\n\nРозбери мій креатив перед запуском${img?' (картинка/кадр додано)':''}. Тип: ${c.kind==='video'?'відео (бачиш лише обкладинку)':'фото'}.
 Заголовок: ${c.headline||'—'}\nТекст(и):\n${c.texts.map((x,k)=>LET[k]+': '+x).join('\n---\n')}
 Оціни як таргетолог: чи зупинить скрол, чи зрозуміла пропозиція за 3 секунди, що виправити в першу чергу, чи є ризик відхилення правилами Meta.
 Формат: {"score":1-10,"hook":"1-2 речення","offer":"1-2 речення","fix":["до 4 конкретних правок"],"risk":"порожньо, якщо ризику нема"}`,img);
  const j=pj(t);c.review={score:+j.score||0,hook:String(j.hook||'').slice(0,300),offer:String(j.offer||'').slice(0,300),fix:(j.fix||[]).map(x=>String(x).slice(0,200)),risk:String(j.risk||'').slice(0,250)}}
-async function aiIdeas(){const t=await ai(SYS,`${aiCtx()}\n\nЗапропонуй 3 нові ідеї реклами, яких ще нема серед цих: ${allIdeas().map(c=>c.concept).join('; ')}.
+async function aiIdeas(){const t=await ai(SYSf(),`${aiCtx()}\n\nЗапропонуй 3 нові ідеї реклами, яких ще нема серед цих: ${allIdeas().map(c=>c.concept).join('; ')}.
 Кожна для іншої аудиторії з ніші. Бери механіку в конкурентів, але слова й пропозиція мої. Враховуй, що працює в моїй рекламі.
 Формат: {"ideas":[{"concept":"назва до 70 символів","persona":"для кого","format":"формат","offer":"що пропонуємо","hypothesis":"чому має спрацювати","hooks":["3 варіанти перших 3 секунд"],"primary_text":"текст оголошення до 500 символів","headline":"до 40 символів","script":[{"t":"0–3с","frame":"що в кадрі","on_screen":"текст на екрані"}]}]}`);
  const j=pj(t);const idx=await CSj('idea_index',[]);let n=Math.max(0,...idx)+1;
@@ -780,7 +834,7 @@ async function act(d){
    catch(e){c.error=e.message;await saveCr(c);err(e);stack.pop();render()}});return}
  if(d.edit){const [id,k]=d.edit.split(':');go(editView(+id,+k));return}
  if(d.aifix){const [id,k]=d.aifix.split(':').map(Number);const c=L$.crs.find(x=>x.id==id);toast('✨ ШІ переписує…');
-  try{const t=await ai(SYS,`${aiCtx()}\n\nПерепиши текст оголошення, зберігши суть і довжину. ${c.review?'Врахуй розбір: '+c.review.fix.join('; ')+(c.review.risk?'; ризик Meta: '+c.review.risk:''):'Зроби сильніший хук і чіткішу пропозицію.'}\nТекст:\n${$('#et').value}\nФормат: {"text":"новий текст"}`);$('#et').value=pj(t).text;okHap()}catch(e){err(e)}return}
+  try{const t=await ai(SYSf(),`${aiCtx()}\n\nПерепиши текст оголошення, зберігши суть і довжину. ${c.review?'Врахуй розбір: '+c.review.fix.join('; ')+(c.review.risk?'; ризик Meta: '+c.review.risk:''):'Зроби сильніший хук і чіткішу пропозицію.'}\nТекст:\n${$('#et').value}\nФормат: {"text":"новий текст"}`);$('#et').value=pj(t).text;okHap()}catch(e){err(e)}return}
  if(d.esave){const [id,k]=d.esave.split(':').map(Number);const c=L$.crs.find(x=>x.id==id);const nt=$('#et').value.trim();if(!nt)return;
   const run=async()=>{try{c.texts[k]=nt;const ent=c.ads.filter(x=>x.k===k);const byCamp={};for(const x of ent)(byCamp[x.camp||c.camp]=byCamp[x.camp||c.camp]||[]).push(x);
    for(const [cid,xs] of Object.entries(byCamp)){const crid=await mkCreative(c,k,cid);for(const x of xs){await gpost(x.ad,{creative:JSON.stringify({creative_id:crid})});x.cr=crid}}
@@ -810,6 +864,16 @@ async function act(d){
  if(d.cgrp!==undefined){const g=CG[+d.cgrp];go(g.ads.length>1?grpView(+d.cgrp):compView(g.ads[0].i));return}
  if(d.bt){bt=d.bt;hap('soft');render();return}
  if(d.copy!==undefined){const c=allIdeas()[+d.copy];try{await navigator.clipboard.writeText(c.primary_text+'\n\n'+c.headline);toast('Скопійовано ✓')}catch(x){toast('Виділи текст і скопіюй')}return}
+ // норми й питання
+ if(d.norms){nd={...NIN0,...(L$.nin||{})};go(normsView());return}
+ if(d.nsave){await saveNorms();okHap();toast('✓ Норми збережено');back();return}
+ if(d.nai){if(!L$.ai){go(setView0());return}const el=$('#naiout');el.innerHTML='<div class="card"><span class="spin"></span> ШІ рахує…</div>';const c=calcN(nd);
+  try{const t=await ai(SYSf(),`${aiCtx()}\n\nМої вхідні: середній чек ${nd.check} ₴, на рекламу ${nd.share}% чека, зі 100 переписок купують ${nd.chat}, зі 100 заявок ${nd.lead}, зі 100 переходів пишуть ${nd.click}. Вийшло: клієнт до ${Math.round(c.cac)} ₴, переписка до ${c.conv} ₴, заявка до ${c.lead} ₴, перехід до ${c.link} ₴.
+Оціни як таргетолог: чи реалістичні ці припущення для моєї ніші в Україні, яка зазвичай ціна переписки в схожих нішах, що б ти змінив. Коротко, 4–6 речень. Формат: {"answer":"текст"}`);el.innerHTML=`<div class="card" style="white-space:pre-wrap">${esc(pj(t).answer)}</div>`}catch(e){el.innerHTML='';err(e)}return}
+ if(d.askv){go(askView());return}
+ if(d.askq){askQ=d.askq;re(askView());return}
+ if(d.ask){askQ=$('#askt').value.trim();if(!askQ)return;if(!L$.ai){go(setView0());return}askBusy=true;re(askView());
+  try{const t=await ai(SYSf(),`${aiCtx()}\n\n${acctCtx()}\n\nПитання: ${askQ}\nВідповідай конкретно під мої цифри, простою мовою, з термінами таргетолога в дужках. До 8 речень або короткий список. Формат: {"answer":"текст"}`);askA=pj(t).answer}catch(e){err(e)}askBusy=false;re(askView());return}
  // налаштування
  if(d.set){go(setView0());return}
  if(d.key){go(keyView());return}
@@ -823,10 +887,12 @@ async function act(d){
  if(d.tab2){tab=d.tab2;stack=[];hap('soft');render();if(tab==='rep')loadRep();return}
  if(d.open){try{tg.openLink(d.open)}catch(x){window.open(d.open)}return}
  if(d.q){const g=G[d.q];sheet(`<h3>${g[0]} <span class="pro">${g[1]}</span></h3><div style="color:#c9c9d6;font-size:15px">${g[2]}</div><button class="btn ghost" data-x="1">Зрозуміло</button>`);return}}
-const keepNc=()=>{if(!nc)return;if($('#nlink'))nc.link=$('#nlink').value.trim();if($('#nname'))nc.name=$('#nname').value.trim()};
-document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
+const keepNc=()=>{if(!nc)return;if($('#nbudin'))nc.budget=Math.round(+$('#nbudin').value.replace(/\D/g,''))||nc.budget;if($('#nlink'))nc.link=$('#nlink').value.trim();if($('#nname'))nc.name=$('#nname').value.trim()};
+document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
  if(!t)return;if(t.dataset.q)e.stopPropagation();try{await act({...t.dataset})}catch(x){err(x)}});
 render();liveLoad();
+/* Telegram кешує сторінку: якщо на GitHub уже новіша збірка — перезавантажуємось */
+fetch(location.pathname+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.text()).then(t=>{const m=t.match(/"build": "([^"]+)"/);if(m&&m[1]!==D.build&&!location.search.includes('v='+m[1]))location.replace(location.pathname+'?v='+m[1]+location.hash)}).catch(()=>{});
 }</script></body></html>"""
 
 
@@ -834,7 +900,7 @@ def build(cfg, now, stats, winners, analyses, concepts):
     """Статичні дані для застосунку: конкуренти й ідеї (оновлює щотижневий пайплайн) + налаштування кабінету."""
     launch, meta, kpi = cfg.get("launch") or {}, cfg.get("meta") or {}, cfg["kpi"]
     data = {
-        "client": cfg["name"], "updated": f"{now:%d.%m.%Y}",
+        "client": cfg["name"], "updated": f"{now:%d.%m.%Y}", "build": datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
         "niche": cfg.get("niche", ""), "product": cfg.get("product", ""),
         "cur": cfg.get("currency_symbol", "₴"),
         "kpi": {"target_cpl": kpi.get("target_cpl", 60), "target_lead": kpi.get("target_lead", 150), "target_click": kpi.get("target_click", 8)},
