@@ -2,6 +2,7 @@
 
 Правила ті самі, що в застосунку (recs у miniapp.py). Нічого в кабінеті не змінює:
 рішення виконуються лише кнопкою в застосунку після твого «так»."""
+import math
 import os
 import urllib.parse
 from datetime import datetime, timezone
@@ -47,9 +48,16 @@ def _age_h(iso, now):
     return (now - datetime.strptime(iso[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)).total_seconds() / 3600
 
 
-def ad_ready(age_h, spend, res, T):
-    """Чи вже можна судити оголошення: за грошима й результатами, а не за днями (як у застосунку)."""
-    return age_h >= 168 or (age_h >= 48 and (spend >= 2 * T or res >= 3)) or (age_h >= 24 and spend >= 3 * T)
+RULES = {"risk": 10, "scale": 10, "step": 20, "minh": 48}
+
+
+def pcdf(k, lam):
+    """P(X ≤ k) для Пуассона: шанс отримати не більше k результатів, якщо в середньому чекаємо lam."""
+    t = s = math.exp(-lam)
+    for i in range(1, int(k) + 1):
+        t *= lam / i
+        s += t
+    return min(1.0, s)
 
 
 def scale_wait_days(T, budget):
@@ -57,8 +65,15 @@ def scale_wait_days(T, budget):
     return min(7, max(2, -(-3 * T // max(budget, 1))))
 
 
-def evaluate(ads, sets, ins, sins, kpi, now):
-    """Повертає список рішень: pause / replace / fatigue / scale. Ті самі запобіжники, що в застосунку."""
+def pct(p):
+    return f"{p * 100:.0f}%" if p >= 0.01 else "<1%"
+
+
+def evaluate(ads, sets, ins, sins, kpi, now, rules=None):
+    """Рішення pause / replace / fatigue / scale за статистикою, як у застосунку.
+    Вимкнути: якби оголошення було в нормі, такий поганий результат випадає рідше ніж у risk% випадків.
+    Додати бюджет: якби група була лише в нормі, такий хороший результат випадає рідше ніж у scale% випадків."""
+    R = {**RULES, **(rules or {})}
     N, by_set = norms(kpi), {s["id"]: s for s in sets}
     active = [a for a in ads if a.get("effective_status") == "ACTIVE"]
     per_set = {}
@@ -66,33 +81,47 @@ def evaluate(ads, sets, ins, sins, kpi, now):
         per_set[a["adset_id"]] = per_set.get(a["adset_id"], 0) + 1
     out = []
     for a in active:
+        if _age_h(a["created_time"], now) < R["minh"]:
+            continue
         r = goal_res(by_set.get(a["adset_id"]))
         T, i = N[r], ins.get(a["id"]) or {"spend": 0, r: 0, "freq": 0}
-        if not ad_ready(_age_h(a["created_time"], now), i["spend"], i.get(r, 0), T):
-            continue
-        c = i["spend"] / i[r] if i.get(r) else None
-        can = per_set[a["adset_id"]] > 1
-        if not i.get(r) and i["spend"] >= 2 * T:
+        k, lam = i.get(r, 0), i["spend"] / T
+        p = pcdf(k, lam)
+        if k < lam and p * 100 < R["risk"]:
+            can = per_set[a["adset_id"]] > 1
+            got = f"жодного результату" if not k else f"{RES[r][0]} по {money(i['spend'] / k)}"
             out.append({"kind": "pause" if can else "replace", "name": a["name"],
-                        "why": f"{money(i['spend'])} за тиждень і жодного результату" + ("" if can else ". Це єдине оголошення в групі, тож спершу додай заміну")})
-        elif i.get(r, 0) >= 3 and c > 1.5 * T and can:
-            out.append({"kind": "pause", "name": a["name"], "why": f"{RES[r][0]} коштує {money(c)}, у {c / T:.1f} раза дорожче норми"})
+                        "why": f"{money(i['spend'])} за тиждень, {got}; шанс, що воно в нормі й просто не пощастило, {pct(p)}"
+                               + ("" if can else ". Це єдине оголошення в групі, тож спершу додай заміну")})
         if i.get("freq", 0) > 3.2:
             out.append({"kind": "fatigue", "name": a["name"], "why": f"частота {i['freq']:.1f}: люди втомились, пора новий креатив"})
     for s in sets:
         if s.get("effective_status") != "ACTIVE" or not s.get("daily_budget"):
             continue
         r = goal_res(s)
+        b = int(s["daily_budget"]) / 100
         since = min(_age_h(s["created_time"], now), _age_h(s.get("updated_time") or s["created_time"], now))
-        if since < 24 * scale_wait_days(N[r], int(s["daily_budget"]) / 100):
+        if since < 24 * scale_wait_days(N[r], b):
             continue
         si = sins.get(s["id"]) or {"spend": 0, r: 0}
-        c = si["spend"] / si[r] if si.get(r) else None
-        if si.get(r, 0) >= 5 and c <= N[r]:
-            b = int(s["daily_budget"]) / 100
+        k, lam = si.get(r, 0), si["spend"] / N[r]
+        p = 1 - pcdf(k - 1, lam) if k else 1
+        if k > lam and p * 100 < R["scale"]:
+            nb = b * (1 + R["step"] / 100)
             out.append({"kind": "scale", "name": s["name"],
-                        "why": f"{RES[r][0]} по {money(c)} при нормі {money(N[r])}: можна +20% ({money(b)} → {money(b * 1.2)}/день)"})
+                        "why": f"{RES[r][0]} по {money(si['spend'] / k)} при нормі {money(N[r])}, шанс випадковості {pct(p)}: "
+                               f"можна +{R['step']:.0f}% ({money(b)} → {money(nb)}/день)"})
     return out
+
+
+def rules_from_labels(labels):
+    """Правила рішень із застосунку: мітка «ai_rules risk=10 scale=10 step=20 minh=48»."""
+    for lab in labels:
+        n = lab.get("name", "")
+        if n.startswith("ai_rules "):
+            kv = dict(x.split("=", 1) for x in n.split()[1:] if "=" in x)
+            return {k: float(v) for k, v in kv.items() if k in RULES and v.replace(".", "", 1).isdigit()}
+    return {}
 
 
 def reasons(ad):
@@ -161,8 +190,9 @@ def run(cfg, now=None, send=True):
     sins = {r["adset_id"]: px(r) for r in _get(f"{A}/insights", token, v, level="adset", date_preset="last_7d", fields="adset_id," + INS, limit=100)["data"]}
     tot = lambda preset: px((_get(f"{A}/insights", token, v, date_preset=preset, fields=INS)["data"] or [{}])[0])  # noqa: E731
     y, w = tot("yesterday"), tot("last_7d")
-    kpi = {**cfg["kpi"], **norms_from_labels(_get(f"{A}/adlabels", token, v, fields="name", limit=100).get("data", []))}
-    recs = evaluate(ads, sets, ins, sins, kpi, now)
+    labels = _get(f"{A}/adlabels", token, v, fields="name", limit=200).get("data", [])
+    kpi = {**cfg["kpi"], **norms_from_labels(labels)}
+    recs = evaluate(ads, sets, ins, sins, kpi, now, rules_from_labels(labels))
     txt = message(acc.get("name", ""), y, w, ads, recs, kpi)
     log(txt)
     t = cfg.get("telegram") or {}

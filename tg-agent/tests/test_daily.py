@@ -28,18 +28,26 @@ class T(unittest.TestCase):
         self.assertIn(("fatigue", "b"), r)        # частота 3.6
         self.assertIn(("scale", "Direct"), r)     # 10 переписок по 30 при нормі 60
         self.assertIn(("replace", "only"), r)     # єдине в групі — не вимикаємо
-        self.assertFalse(any(n == "new" for _, n in r))  # молодше 72 год не чіпаємо
+        self.assertFalse(any(n == "new" for _, n in r))  # молодше 48 год не чіпаємо
 
     def test_lead_norm_and_message(self):
         ads = [ad("x", "S2"), ad("y", "S2"), ad("bad", "S2", st="DISAPPROVED")]
         ads[2]["ad_review_feedback"] = {"global": {"PERSONAL_ATTRIBUTES": "Особисті характеристики"}}
-        ins = {"x": {"spend": 800, "lead": 3, "freq": 1}, "y": {"spend": 100, "lead": 1, "freq": 1}}
+        ins = {"x": {"spend": 1200, "lead": 3, "freq": 1}, "y": {"spend": 100, "lead": 1, "freq": 1}}
         rec = daily.evaluate(ads, SETS, ins, {}, KPI, NOW)
-        self.assertEqual([(x["kind"], x["name"]) for x in rec], [("pause", "x")])  # 267 ₴ за заявку > 150 × 1.5
+        self.assertEqual([(x["kind"], x["name"]) for x in rec], [("pause", "x")])  # 400 ₴ за заявку при нормі 150: шанс випадковості ~4%
         w = {"spend": 900, "conv": 0, "lead": 4, "link": 0}
         txt = daily.message("acc", w, w, ads, rec, KPI)
         self.assertIn("4 заявки", txt)
         self.assertIn("Особисті характеристики", txt)
+
+    def test_stats(self):
+        self.assertAlmostEqual(daily.pcdf(0, 2.3026), 0.1, places=3)
+        ads = [ad("x", "S2"), ad("y", "S2")]
+        few = {"x": {"spend": 800, "lead": 3, "freq": 1}}  # 267 ₴ за заявку, але лише 3 заявки: шанс випадковості ~22%
+        self.assertEqual(daily.evaluate(ads, SETS, few, {}, KPI, NOW), [])
+        self.assertEqual(len(daily.evaluate(ads, SETS, few, {}, KPI, NOW, {"risk": 30})), 1)  # агресивніший поріг
+        self.assertEqual(daily.rules_from_labels([{"name": "ai_rules risk=20 step=15"}]), {"risk": 20.0, "step": 15.0})
 
     def test_norms_label(self):
         self.assertEqual(daily.norms_from_labels([{"name": "інше"}, {"name": "ai_norms conv=112 lead=150 link=13"}]),
