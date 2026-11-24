@@ -199,7 +199,9 @@ const alive=x=>!/DELETED|ARCHIVED/.test(x.effective_status||'');
 
 /* ───── Завантаження ───── */
 const normCr=c=>{c.texts=c.texts||[c.text||''];c.ads=c.ads||(c.ad_ids||[]).map((ad,k)=>({ad,cr:(c.crids||[])[k],k}));delete c.ad_ids;delete c.crids;delete c.ad_id;delete c.text;return c};
-const saveCr=c=>CS.set('cr_'+c.id,JSON.stringify({...c,texts:c.texts.map(t=>(t||'').slice(0,900)),review:c.review?{...c.review,fix:(c.review.fix||[]).slice(0,4)}:undefined,preview:undefined}));
+const saveCr=c=>{const o={...c,texts:c.texts.map(t=>(t||'').slice(0,900)),review:c.review?{...c.review,fix:(c.review.fix||[]).slice(0,4)}:undefined,preview:undefined};
+ let j=JSON.stringify(o);if(j.length>4000&&o.review){o.review={...o.review,hook:o.review.hook.slice(0,120),offer:o.review.offer.slice(0,120),fix:o.review.fix.map(x=>x.slice(0,100))};j=JSON.stringify(o)}
+ while(j.length>4000&&o.texts.some(t=>t)){const k=o.texts.reduce((m,t,i)=>t.length>o.texts[m].length?i:m,0);o.texts[k]=o.texts[k].slice(0,-60);j=JSON.stringify(o)}return CS.set('cr_'+c.id,j)};
 const saveIdx=()=>CS.set('cr_index',JSON.stringify(L$.crs.map(c=>c.id)));
 async function loadCrs(){const idx=await CSj('cr_index',[]);const out=[];for(const id of idx){const c=await CSj('cr_'+id,null);if(c)out.push(normCr(c))}L$.crs=out}
 async function loadCfg(){const idx=await CSj('cmp_index',[]);L$.cfg={};for(const id of idx){const c=await CSj('cmp_'+id,null);if(c)L$.cfg[id]=c}}
@@ -264,19 +266,23 @@ async function loadSheet(){const u=L$.links.csv;if(!u){L$.sheet=[];return}
 
 /* ───── ШІ (Anthropic або Gemini, ключ у CloudStorage) ───── */
 const aiProv=()=>L$.ai.startsWith('sk-ant')?'anthropic':L$.ai.startsWith('AIza')?'gemini':null;
-async function fileImg(f){if(!f)return null;try{const u=URL.createObjectURL(f);let el;
- if(f.type.startsWith('video')){el=document.createElement('video');el.muted=true;el.playsInline=true;el.preload='auto';el.src=u;
-  await new Promise((r,j)=>{el.onloadeddata=r;el.onerror=j;setTimeout(j,8000)});el.currentTime=Math.min(1,(el.duration||2)/3);await new Promise(r=>{el.onseeked=r;setTimeout(r,3000)})}
- else{el=new Image();el.src=u;await el.decode()}
- const w=el.videoWidth||el.naturalWidth,h=el.videoHeight||el.naturalHeight,k=Math.min(1,1280/Math.max(w,h)),cv=document.createElement('canvas');cv.width=Math.round(w*k);cv.height=Math.round(h*k);
- cv.getContext('2d').drawImage(el,0,0,cv.width,cv.height);URL.revokeObjectURL(u);return {b64:cv.toDataURL('image/jpeg',.85).split(',')[1],mime:'image/jpeg',video:f.type.startsWith('video')}}catch(e){return null}}
+/* кадри для ШІ: фото → 1 картинка, відео → n кадрів рівномірно */
+const shot=(el,w,h,max)=>{const k=Math.min(1,max/Math.max(w,h)),cv=document.createElement('canvas');cv.width=Math.round(w*k);cv.height=Math.round(h*k);cv.getContext('2d').drawImage(el,0,0,cv.width,cv.height);return {b64:cv.toDataURL('image/jpeg',.8).split(',')[1],mime:'image/jpeg'}};
+async function fileImgs(f,n=6,max=1024){if(!f)return [];const u=URL.createObjectURL(f);try{
+ if(!f.type.startsWith('video')){const im=new Image();im.src=u;await im.decode();return [shot(im,im.naturalWidth,im.naturalHeight,max)]}
+ const v=document.createElement('video');v.muted=true;v.playsInline=true;v.preload='auto';v.src=u;
+ await new Promise((r,j)=>{v.onloadeddata=r;v.onerror=j;setTimeout(j,10000)});const d=isFinite(v.duration)&&v.duration>0?v.duration:2,out=[];
+ for(let i=0;i<n;i++){const t=Math.min(d-.05,d*(i+.5)/n);v.currentTime=t;const ok=await new Promise(r=>{v.onseeked=()=>r(1);setTimeout(()=>r(0),3000)});if(!ok&&i)break;
+  const fr=shot(v,v.videoWidth,v.videoHeight,max);fr.t=Math.round(t);out.push(fr)}
+ const uniq=out.filter((x,i)=>!i||x.b64!==out[i-1].b64);return uniq.map(x=>({...x,video:true,dur:Math.round(d)}))}catch(e){return []}finally{URL.revokeObjectURL(u)}}
 async function toB64(blob){return await new Promise((r,j)=>{const fr=new FileReader();fr.onload=()=>r(String(fr.result).split(',')[1]);fr.onerror=j;fr.readAsDataURL(blob)})}
 async function ai(system,user,img,heavy){const p=aiProv();if(!p)throw new Error('Додай ключ ШІ в налаштуваннях');
- if(img?.url&&p==='gemini'){try{const b=await (await fetch(img.url)).blob();img={b64:await toB64(b),mime:b.type||'image/jpeg'}}catch(e){img=null}}
- if(p==='anthropic'){const content=[];if(img)content.push({type:'image',source:img.url?{type:'url',url:img.url}:{type:'base64',media_type:img.mime,data:img.b64}});content.push({type:'text',text:user});
+ let imgs=(Array.isArray(img)?img:img?[img]:[]).filter(Boolean).slice(0,16);
+ if(p==='gemini')imgs=(await Promise.all(imgs.map(async x=>{if(!x.url)return x;try{const b=await (await fetch(x.url)).blob();return {b64:await toB64(b),mime:b.type||'image/jpeg'}}catch(e){return null}}))).filter(Boolean);
+ if(p==='anthropic'){const content=[];for(const x of imgs)content.push({type:'image',source:x.url?{type:'url',url:x.url}:{type:'base64',media_type:x.mime,data:x.b64}});content.push({type:'text',text:user});
   const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'x-api-key':L$.ai,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true','content-type':'application/json'},
    body:JSON.stringify({model:heavy?(LC.ai_model_heavy||'claude-opus-5-5'):(LC.ai_model||'claude-sonnet-5-5'),max_tokens:4000,system,messages:[{role:'user',content}]})});const j=await r.json();if(j.error)throw new Error(j.error.message);return j.content.map(x=>x.text||'').join('')}
- const parts=[];if(img)parts.push({inline_data:{mime_type:img.mime,data:img.b64}});parts.push({text:user});
+ const parts=imgs.map(x=>({inline_data:{mime_type:x.mime,data:x.b64}}));parts.push({text:user});
  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${LC.gemini_model||'gemini-flash-latest'}:generateContent?key=${encodeURIComponent(L$.ai)}`,{method:'POST',headers:{'content-type':'application/json'},
   body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts}],generationConfig:{responseMimeType:'application/json'}})});
  const j=await r.json();if(j.error)throw new Error(j.error.message);return (j.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join('')}
@@ -377,7 +383,7 @@ const campItem=c=>{const g=GOALS[goalOfCamp(c.id)],i=campIns(c.id),cpr=cost(i,g.
 const crSt=c=>{if(!c.ads.length)return c.error?['p-bad','помилка']:['p-mid','чернетка'];const st=c.ads.map(x=>L$.ads.find(a=>a.id===x.ad)?.effective_status).filter(Boolean);
  return st.includes('DISAPPROVED')?['p-bad','відхилено Meta']:st.includes('WITH_ISSUES')?['p-bad','є проблема']:st.includes('ACTIVE')?['p-good','у рекламі']:st.some(s=>/REVIEW|PENDING|IN_PROCESS/.test(s))?['p-mid','на перевірці Meta']:st.includes('PAUSED')||st.includes('CAMPAIGN_PAUSED')||st.includes('ADSET_PAUSED')?['p-learn','на паузі']:['p-learn',st[0]?'не показується':'видалено в Meta']};
 const crIns=c=>insOf(c.ads.map(x=>x.ad));
-const crItem=c=>{const s=crSt(c),i=crIns(c),g=c.camp?GOALS[goalOfCamp(c.camp)]:null;return `<div class="item" data-cr="${c.id}">${c.thumb?`<img class="th" src="${esc(c.thumb)}">`:`<div class="ico i-ai">${c.kind==='video'?'🎬':'🖼'}</div>`}<div class="tx"><b>${esc(c.headline||c.texts[0].slice(0,50)||'Без назви')}</b><small>${c.ads.length&&g?`${usd(i.spend)} · ${rn(i[g.res],g.res)} за 7 дн`:esc((c.texts[0]||'').slice(0,60))}</small><span class="pill ${s[0]}" style="margin-top:8px;padding:3px 10px;font-size:12.5px">${s[1]}</span></div><span class="chev">›</span></div>`};
+const crItem=c=>{const s=crSt(c),i=crIns(c),g=c.camp?GOALS[goalOfCamp(c.camp)]:null;return `<div class="item" data-cr="${c.id}">${c.thumb?`<img class="th" src="${esc(c.thumb)}">`:`<div class="ico i-ai">${c.kind==='video'?'🎬':c.kind==='carousel'?'🎠':'🖼'}</div>`}<div class="tx"><b>${esc(c.headline||c.texts[0].slice(0,50)||'Без назви')}</b><small>${c.ads.length&&g?`${usd(i.spend)} · ${rn(i[g.res],g.res)} за 7 дн`:esc((c.texts[0]||'').slice(0,60))}</small><span class="pill ${s[0]}" style="margin-top:8px;padding:3px 10px;font-size:12.5px">${s[1]}</span></div><span class="chev">›</span></div>`};
 V.ads=()=>{if(waiting())return top()+waitCard();if(!tok())return top()+setupCard();
  return top('Кампанії й креативи')+`<h2 style="margin-top:6px">Кампанії</h2><p class="h2s">Кожна кампанія має свою мету, бюджет і аудиторію ${q('goal')}</p>
  ${L$.camps.map(campItem).join('')||'<div class="card">Кампаній ще нема. Почни з переписок у Direct: для послуг це найпростіше.</div>'}
@@ -530,22 +536,32 @@ async function makeRt(cid){let aud=await CS.get('rt_audience');
 
 /* ───── Креативи ───── */
 let draft=null;
-const fileBtn=(id,label,f)=>`<label class="btn ghost" style="margin:6px 0 0;cursor:pointer">${f?'✓ '+esc(f.name):label}<input id="${id}" type="file" accept="image/*,video/*" style="display:none"></label>`;
-const addView=()=>()=>{const d=draft;return `<h2 style="margin-top:6px">Новий креатив</h2><div class="card">
- <div class="l">Основний файл · квадрат або 4:5</div>${fileBtn('cf','Вибрати фото чи відео',d.file)}
- ${d.preview?`<img src="${d.preview}" style="width:100%;border-radius:12px;margin-top:10px">`:''}
+const fileBtn=(id,label,f,multi)=>`<label class="btn ghost" style="margin:6px 0 0;cursor:pointer">${f?'✓ '+esc(f.name):label}<input id="${id}" type="file" accept="image/*,video/*" ${multi?'multiple':''} style="display:none"></label>`;
+const isCar=d=>d?.mode==='car';
+const cardRow=(c,i,n)=>`<div class="item" style="cursor:default;align-items:center">${c.preview?`<img class="th" src="${c.preview}">`:`<div class="ico i-ai">🎬</div>`}
+ <div class="tx"><small>Картка ${i+1}</small><input id="cct${i}" class="in" style="margin-top:6px" maxlength="40" value="${esc(c.title||'')}" placeholder="Заголовок картки"></div>
+ <div style="display:flex;flex-direction:column;gap:4px">${i?`<button class="btn ghost sm" style="margin:0;padding:4px 10px" data-cup="${i}">↑</button>`:''}${i<n-1?`<button class="btn ghost sm" style="margin:0;padding:4px 10px" data-cdown="${i}">↓</button>`:''}<button class="btn ghost sm" style="margin:0;padding:4px 10px" data-cdel="${i}">✕</button></div></div>`;
+const addView=()=>()=>{const d=draft,car=isCar(d),has=car?d.cards?.length:d.file;return `<h2 style="margin-top:6px">Новий креатив</h2>
+ <div class="seg"><button class="${car?'':'on'}" data-crmode="one">Одне фото / відео</button><button class="${car?'on':''}" data-crmode="car">Карусель</button></div>
+ <div class="card">${car?`<div class="l">Картки · 2–10, усі однієї пропорції (1:1 або 4:5)</div>
+ ${(d.cards||[]).map((c,i)=>cardRow(c,i,d.cards.length)).join('')}
+ ${(d.cards||[]).length<10?fileBtn('ccar',(d.cards||[]).length?'+ Додати картки':'Вибрати фото чи відео',null,true):''}
+ <div class="h2s" style="margin:6px 0 0">Можна обрати кілька файлів одразу. Фото й відео можна змішувати. Порядок міняй стрілками, перша картка найважливіша. Окремої версії 9:16 у каруселі нема, у сторіс Meta показує картки по черзі.</div>`
+ :`<div class="l">Основний файл · квадрат або 4:5</div>${fileBtn('cf','Вибрати фото чи відео',d.file)}
+ ${d.preview?`<img src="${d.preview}" style="width:100%;border-radius:12px;margin-top:10px">`:d.file?'<div class="h2s" style="margin:6px 0 0">🎬 Відео: ШІ подивиться 6 кадрів від початку до кінця. Звук не чує, тому суть озвучки напиши в полі «Про що реклама».</div>':''}
  <div class="l" style="margin-top:14px">Вертикальний 9:16 для сторіс і Reels (необов'язково)</div>${fileBtn('cf2','Додати вертикальну версію',d.file2)}
- <div class="h2s" style="margin:6px 0 0">Без нього Meta сама обріже основний файл під сторіс. Обидва файли мають бути одного типу: два фото або два відео.</div></div>
+ <div class="h2s" style="margin:6px 0 0">Без нього Meta сама обріже основний файл під сторіс. Обидва файли мають бути одного типу: два фото або два відео.</div>`}</div>
  <div class="card"><div class="l">Про що реклама (для ШІ, необов'язково)</div><input id="ctopic" class="in" value="${esc(d.topic||'')}" placeholder="напр. AI-бот для салону: відповідає в Direct 24/7">
- <button class="btn ${L$.ai?'':'ghost'} sm" data-aitext="1">${L$.ai?(draft.file?'✨ ШІ напише 3 тексти під цей креатив':'✨ ШІ напише 3 варіанти тексту'):'✨ Тексти від ШІ: додай ключ у налаштуваннях'}</button></div>
+ <button class="btn ${L$.ai?'':'ghost'} sm" data-aitext="1">${L$.ai?(has?(car?'✨ ШІ напише тексти під усю карусель':'✨ ШІ напише 3 тексти під цей креатив'):'✨ ШІ напише 3 варіанти тексту'):'✨ Тексти від ШІ: додай ключ у налаштуваннях'}</button></div>
  <div class="card"><div class="l">Заголовок (необов'язково)</div><input id="ch" class="in" value="${esc(d.headline||'')}">
  <div class="l" style="margin-top:14px">Текст · варіант A</div><textarea id="ct" class="in" rows="6">${esc(d.text||'')}</textarea>
  <div class="l" style="margin-top:14px">Варіант B (необов'язково)</div><textarea id="ct2" class="in" rows="4" placeholder="Інший хук або інша пропозиція. Meta покаже обидва, а я скажу, який дешевший.">${esc(d.text2||'')}</textarea>
  <div class="l" style="margin-top:14px">Варіант C (необов'язково)</div><textarea id="ct3" class="in" rows="4">${esc(d.text3||'')}</textarea></div>
  <button class="btn" data-save="1">Зберегти креатив</button><p class="h2s" style="margin-top:10px">Після збереження ШІ може розібрати креатив, а ти обираєш, у яку кампанію запустити.</p>`};
-const keepDraft=()=>{if(!$('#ct'))return;Object.assign(draft,{topic:$('#ctopic').value,headline:$('#ch').value,text:$('#ct').value,text2:$('#ct2').value,text3:$('#ct3').value})};
-document.addEventListener('change',e=>{if(!['cf','cf2'].includes(e.target.id))return;const f=e.target.files[0];if(!f)return;keepDraft();
- if(e.target.id==='cf'){draft.file=f;draft.preview=f.type.startsWith('image')?URL.createObjectURL(f):''}else draft.file2=f;re(addView())});
+const keepDraft=()=>{if(!$('#ct'))return;Object.assign(draft,{topic:$('#ctopic').value,headline:$('#ch').value,text:$('#ct').value,text2:$('#ct2').value,text3:$('#ct3').value});(draft.cards||[]).forEach((c,i)=>{const el=$('#cct'+i);if(el)c.title=el.value})};
+document.addEventListener('change',e=>{if(!['cf','cf2','ccar'].includes(e.target.id))return;const fs=[...e.target.files];if(!fs.length)return;keepDraft();
+ if(e.target.id==='ccar'){draft.cards=draft.cards||[];for(const f of fs){if(draft.cards.length>=10){toast('Максимум 10 карток');break}draft.cards.push({file:f,preview:f.type.startsWith('image')?URL.createObjectURL(f):'',title:''})}}
+ else if(e.target.id==='cf'){draft.file=fs[0];draft.preview=fs[0].type.startsWith('image')?URL.createObjectURL(fs[0]):''}else draft.file2=fs[0];re(addView())});
 async function upload(f){const fd=new FormData();
  if(f.type.startsWith('image')){fd.append('filename',f,f.name);const j=await gform(`${ACT()}/adimages`,fd);const im=Object.values(j.images)[0];return {kind:'image',ref:im.hash,thumb:im.url}}
  fd.append('source',f,f.name);const j=await gform(`${ACT()}/advideos`,fd);return {kind:'video',ref:j.id,thumb:''}}
@@ -554,6 +570,10 @@ async function videoReady(id){for(let i=0;i<40;i++){const s=await gget(`${id}?fi
 function ctaFor(gk,cf){if(gk==='direct')return {type:'INSTAGRAM_MESSAGE',value:{app_destination:'INSTAGRAM_DIRECT'}};if(gk==='lead')return {type:'SIGN_UP',value:{lead_gen_form_id:cf.form}};return {type:'LEARN_MORE',value:{link:cf.link}}}
 async function crSpec(c,text,cid,two){const gk=goalOfCamp(cid),cf=L$.cfg[cid]||{},cta=ctaFor(gk,cf),link=gk==='direct'?(LC.link||'https://www.instagram.com/'):gk==='lead'?'https://fb.me/':cf.link;
  const oss={page_id:LC.page,...(LC.ig?{instagram_user_id:LC.ig}:{})};
+ if(c.kind==='carousel'){const vt={};for(const x of c.cards)if(x.k==='v')vt[x.r]=await videoReady(x.r);
+  oss.link_data={message:text,link,multi_share_optimized:false,multi_share_end_card:false,call_to_action:cta,
+   child_attachments:c.cards.map(x=>({link,name:x.t||c.headline||'',call_to_action:cta,...(x.k==='i'?{image_hash:x.r}:{video_id:x.r,picture:vt[x.r]})}))};
+  return {object_story_spec:oss}}
  if(c.kind==='video'){if(!c.thumb)c.thumb=await videoReady(c.ref);if(c.ref2&&!c.thumb2)c.thumb2=await videoReady(c.ref2)}
  if(two&&c.ref2){const F=c.kind==='image';const lab=(n,x)=>F?{hash:x,adlabels:[{name:n}]}:{video_id:x,thumbnail_url:n==='sq'?c.thumb:c.thumb2,adlabels:[{name:n}]};
   const rule=(spec,n,p)=>({customization_spec:spec,[F?'image_label':'video_label']:{name:n},priority:p});
@@ -580,7 +600,7 @@ const crView=id=>()=>{const c=L$.crs.find(x=>x.id==id);if(!c)return'';const s=cr
  const best=vs.filter(v=>v.cpr!=null).sort((a,b)=>a.cpr-b.cpr)[0];const camps=[...new Set(c.ads.map(x=>x.camp||c.camp))].map(id=>L$.camps.find(z=>z.id===id)?.name).filter(Boolean);
  return `<div class="card hero"><span class="pill ${s[0]}">${s[1]}</span><div class="ttl" style="margin:10px 0 0">${esc(c.headline||'Креатив #'+c.id)}</div>
  ${camps.length?`<div class="h2s" style="margin:4px 0 0">У кампанії: ${esc(camps.join(', '))}</div>`:''}
- ${c.thumb||c.preview?`<img src="${esc(c.preview||c.thumb)}" style="width:100%;border-radius:14px;margin-top:12px">`:''}${c.ref2?'<div class="h2s" style="margin:8px 0 0">+ вертикальна версія для сторіс і Reels</div>':''}</div>
+ ${c.thumb||c.preview?`<img src="${esc(c.preview||c.thumb)}" style="width:100%;border-radius:14px;margin-top:12px">`:''}${c.ref2?'<div class="h2s" style="margin:8px 0 0">+ вертикальна версія для сторіс і Reels</div>':''}${c.kind==='carousel'?`<div class="h2s" style="margin:8px 0 0">Карусель · ${c.cards.length} карток${c.cards.some(x=>x.t)?': '+esc(c.cards.map(x=>x.t||'—').join(' · ')):''}</div>`:''}</div>
  ${c.note?`<div class="hint" style="cursor:default"><div class="ico i-mid">!</div><div class="tx"><small style="color:var(--ink)">${esc(c.note)}</small></div></div>`:''}
  ${rj.length?rejCard([...new Set(rj.flatMap(reasons))],null):''}
  ${c.ads.length&&g?`<div class="mg"><div class="m"><span>Витрати ${q('spend')}</span><b>${usd(i.spend)}</b></div><div class="m"><span>${RES[g.res][2][0].toUpperCase()+RES[g.res][2].slice(1)} ${q('res')}</span><b>${fmt(i[g.res])}</b></div><div class="m"><span>${RES[g.res][3]} ${q('cpr')}</span><b>${usd(cost(i,g.res))}</b></div><div class="m"><span>Клікабельність ${q('ctr')}</span><b>${i.impr?(i.clicks/i.impr*100).toFixed(2)+'%':'—'}</b></div></div>`:''}
@@ -826,15 +846,23 @@ function acctCtx(){const camps=L$.camps.map(c=>{const g=GOALS[goalOfCamp(c.id)],
  const all=[...L$.marks,...L$.sheet];return `Кабінет:\n${camps}\nКреативів у застосунку: ${L$.crs.length}, оголошень у Meta: ${L$.ads.length}. За 90 днів витрачено ${Math.round(L$.sp90)} ₴, дзвінків ${all.filter(m=>m.t==='call').length}, оплат ${all.filter(m=>m.t==='paid').length}. Норми: переписка ${NR('conv')} ₴, заявка ${NR('lead')} ₴, перехід ${NR('link')} ₴.`}
 
 /* ───── ШІ-дії ───── */
-async function aiTexts(){keepDraft();const gk=draft.camp?goalOfCamp(draft.camp):(L$.camps[0]?goalOfCamp(L$.camps[0].id):'direct');
- const img=await fileImg(draft.file);
- const vis=img?`\n\nДо повідомлення додано ${img.video?'кадр з відео':'картинку'} креативу, під який пишеш. Спершу роздивись: що на ньому, який меседж, текст на зображенні, для кого це. Текст оголошення має продовжувати саме цей креатив: хук перегукується з тим, що людина бачить, не повторює дослівно текст з картинки й не суперечить їй. Якщо креатив не про наш продукт, все одно пиши про продукт, але зв'язуй з тим, що на картинці.`:'';
+async function aiTexts(){keepDraft();const gk=draft.camp?goalOfCamp(draft.camp):(L$.camps[0]?goalOfCamp(L$.camps[0].id):'direct');const car=isCar(draft);
+ let imgs=[],vis='';
+ if(car){const cs=draft.cards;const per=cs.length<=4?3:cs.length<=7?2:1;for(const c of cs)imgs.push(...await fileImgs(c.file,c.file.type.startsWith('video')?per:1,768));
+  vis=`\n\nЦе КАРУСЕЛЬ з ${cs.length} карток. Картинки додано по порядку карток (для відео-карток по кілька кадрів поспіль). Спершу роздивись усю історію: що на кожній картці, який меседж веде від першої до останньої, текст на картках. Основний текст має працювати на всю карусель і спонукати гортати, а не описувати одну картку. Для кожної картки дай короткий заголовок до 40 символів, який підсилює саме її, не повторює дослівно текст на ній.`}
+ else if(draft.file){imgs=await fileImgs(draft.file,6);const v=imgs[0]?.video;
+  if(imgs.length)vis=v?`\n\nДодано ${imgs.length} кадрів з відео тривалістю ~${imgs[0].dur} с, рівномірно від початку до кінця (секунди: ${imgs.map(x=>x.t).join(', ')}). Звуку ти не чуєш. Спершу відтвори сюжет: що відбувається, титри, як розвивається меседж, чим закінчується. Перший кадр — це те, що людина бачить перші секунди, хук тексту має з ним працювати. Текст продовжує саме це відео, не переказує його і не суперечить.`
+   :`\n\nДо повідомлення додано картинку креативу, під який пишеш. Спершу роздивись: що на ній, який меседж, текст на зображенні, для кого це. Текст оголошення має продовжувати саме цей креатив: хук перегукується з тим, що людина бачить, не повторює дослівно текст з картинки й не суперечить їй.`;
+  if(imgs.length)vis+=` Якщо креатив не про наш продукт, все одно пиши про продукт, але зв'язуй з тим, що бачиш.`}
  const t=await ai(SYSf(),`${aiCtx()}${vis}\n\nНапиши 3 різні варіанти тексту оголошення для Instagram. Мета: ${GOALS[gk].name}.${draft.topic?' Про що реклама: '+draft.topic+'.':''}
 Кожен варіант з іншим хуком (перше речення) і кутом подачі. 300–600 символів, абзаци, в кінці заклик до дії під мету (${gk==='direct'?'написати в Direct':gk==='lead'?'залишити заявку':'перейти за посиланням'}).
-Формат: {"headline":"заголовок до 40 символів","variants":["текст A","текст B","текст C"]}`,img);const j=pj(t);
- Object.assign(draft,{headline:draft.headline||j.headline||'',text:j.variants[0]||'',text2:j.variants[1]||'',text3:j.variants[2]||''})}
-async function aiReview(c){let img=null;if(c.kind==='image'&&c.thumb)img={url:c.thumb};else if(c.thumb)img={url:c.thumb};
- const t=await ai(SYSf(),`${aiCtx()}\n\nРозбери мій креатив перед запуском${img?' (картинка/кадр додано)':''}. Тип: ${c.kind==='video'?'відео (бачиш лише обкладинку)':'фото'}.
+Формат: {"headline":"заголовок до 40 символів","variants":["текст A","текст B","текст C"]${car?',"cards":["заголовок картки 1","…"]':''}}`,imgs);const j=pj(t);
+ Object.assign(draft,{headline:draft.headline||j.headline||'',text:j.variants[0]||'',text2:j.variants[1]||'',text3:j.variants[2]||''});
+ if(car&&Array.isArray(j.cards))draft.cards.forEach((c,i)=>{if(!c.title&&j.cards[i])c.title=String(j.cards[i]).slice(0,40)})}
+async function aiReview(c){let img=c.thumb?[{url:c.thumb}]:[];
+ if(c.kind==='carousel'){img=[];const hs=c.cards.filter(x=>x.k==='i').map(x=>x.r);let urls={};if(hs.length)try{(await gget(`${ACT()}/adimages?hashes=${encodeURIComponent(JSON.stringify(hs))}&fields=hash,url`)).data.forEach(x=>urls[x.hash]=x.url)}catch(e){}
+  for(const x of c.cards){const u=x.k==='i'?urls[x.r]:await videoReady(x.r).catch(()=>'');if(u)img.push({url:u})}}
+ const t=await ai(SYSf(),`${aiCtx()}\n\nРозбери мій креатив перед запуском${img.length?' (зображення додано)':''}. Тип: ${c.kind==='carousel'?`карусель з ${c.cards.length} карток, зображення по порядку; заголовки карток: ${c.cards.map((x,i)=>(i+1)+'. '+(x.t||'—')).join('; ')}. Оціни ще, чи тягне перша картка гортати далі`:c.kind==='video'?'відео (бачиш лише обкладинку)':'фото'}.
 Заголовок: ${c.headline||'—'}\nТекст(и):\n${c.texts.map((x,k)=>LET[k]+': '+x).join('\n---\n')}
 Оціни як таргетолог: чи зупинить скрол, чи зрозуміла пропозиція за 3 секунди, що виправити в першу чергу, чи є ризик відхилення правилами Meta.
 Формат: {"score":1-10,"hook":"1-2 речення","offer":"1-2 речення","fix":["до 4 конкретних правок"],"risk":"порожньо, якщо ризику нема"}`,img);
@@ -871,8 +899,15 @@ async function act(d){
  // креативи
  if(d.add!==undefined){if(!tok()){go(keyView());return}draft={camp:d.addcamp||null};go(addView());return}
  if(d.useidea!==undefined){const c=allIdeas()[+d.useidea];draft={headline:c.headline,text:c.primary_text,topic:c.concept};tab='ads';stack=[];go(addView());return}
+ if(d.crmode){keepDraft();draft.mode=d.crmode;re(addView());return}
+ if(d.cup||d.cdown||d.cdel){keepDraft();const cs=draft.cards,i=+(d.cup||d.cdown||d.cdel);if(d.cdel)cs.splice(i,1);else{const j=d.cup?i-1:i+1;[cs[i],cs[j]]=[cs[j],cs[i]]}re(addView());return}
  if(d.aitext){if(!L$.ai){go(setView0());return}toast(draft.file?'✨ ШІ дивиться креатив і пише…':'✨ ШІ пише…');try{await aiTexts();okHap();re(addView())}catch(e){err(e)}return}
  if(d.save){keepDraft();const t=[draft.text,draft.text2,draft.text3].map(x=>(x||'').trim()).filter(Boolean);
+  if(isCar(draft)){const cs=draft.cards||[];if(cs.length<2){toast('У каруселі мінімум 2 картки');return}if(!t.length){toast('Напиши текст оголошення');return}
+   if(cs.some(x=>x.file.size>100*1024*1024)){toast('Файл більший за 100 МБ');return}
+   try{const cards=[];let th='';for(let i=0;i<cs.length;i++){toast(`Завантажую картку ${i+1}/${cs.length}…`);const u=await upload(cs[i].file);cards.push({k:u.kind==='image'?'i':'v',r:u.ref,t:(cs[i].title||'').trim().slice(0,40)});if(!i)th=u.thumb}
+    const id=(L$.crs.reduce((m,c)=>Math.max(m,c.id),0))+1;const c=normCr({id,kind:'carousel',cards,thumb:th||'',headline:draft.headline.trim(),texts:t,created:Date.now(),ads:[]});c.preview=cs[0].preview;
+    L$.crs.push(c);await saveCr(c);await saveIdx();const camp=draft.camp;draft=null;stack=[];tab='ads';toast('✓ Карусель збережено');go(crView(id));if(camp){launchFor=camp}}catch(e){err(e)}return}
   if(!draft.file){toast('Вибери фото чи відео');return}if(!t.length){toast('Напиши текст оголошення');return}
   if(draft.file.size>100*1024*1024||draft.file2?.size>100*1024*1024){toast('Файл більший за 100 МБ');return}
   if(draft.file2&&draft.file2.type.slice(0,5)!==draft.file.type.slice(0,5)){toast('Обидва файли мають бути одного типу');return}
