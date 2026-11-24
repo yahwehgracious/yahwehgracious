@@ -619,30 +619,41 @@ async function loadLeads(form){try{const pt=await pageTok();const j=await gget(`
  const el=$('#leads');if(el)el.innerHTML=leadsHtml(form)}
 
 /* ───── Звіт ───── */
-let rp='last_7d',rc='',rb='age';
-const PER=[['last_7d','7 днів'],['last_30d','30 днів'],['this_month','Місяць'],['last_month','Минулий']];
+let rp='last_7d',rc='',rb='age',rf='',rt2='';
+const PER=[['last_7d','7 днів'],['last_30d','30 днів'],['this_month','Місяць'],['y1','Рік'],['maximum','Увесь час'],['custom','📅 Свій']];
+const isoD=d=>new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+const MAXBACK=()=>{const d=new Date();d.setMonth(d.getMonth()-37);d.setDate(d.getDate()+1);return isoD(d)};/* Meta віддає статистику лише за останні 37 місяців */
+const perQ=()=>{if(rp==='y1'){const d=new Date();d.setFullYear(d.getFullYear()-1);return `time_range=${encodeURIComponent(JSON.stringify({since:isoD(d),until:isoD(new Date())}))}`}
+ if(rp==='custom')return `time_range=${encodeURIComponent(JSON.stringify({since:rf<MAXBACK()?MAXBACK():rf,until:rt2}))}`;return `date_preset=${rp}`};
+/* крок графіка: дні для коротких періодів, тижні до року, місяці для довших */
+const perStep=()=>{const days=rp==='last_7d'||rp==='last_30d'||rp==='this_month'?31:rp==='y1'?365:rp==='maximum'?1200:(new Date(rt2)-new Date(rf))/864e5;return days<=62?'1':days<=400?'7':'monthly'};
+const STEPL=()=>({'1':'за день','7':'за тиждень',monthly:'за місяць'})[perStep()];
+async function gall(p){let j=await gget(p),out=j.data||[];for(let n=0;j.paging?.next&&n<15;n++){j=await fetch(j.paging.next).then(meta);out=out.concat(j.data||[])}return {data:out}}
 const BR={age:['Вік','age'],gender:['Стать','gender'],place:['Плейсменти','publisher_platform,platform_position']};
 const LBL={male:'Чоловіки',female:'Жінки',unknown:'Невідомо',instagram:'Instagram',facebook:'Facebook',messenger:'Messenger',audience_network:'Audience Network',threads:'Threads',
  feed:'стрічка',story:'сторіс',instagram_stories:'сторіс',instagram_reels:'Reels',facebook_reels:'Reels',reels_overlay:'Reels-оверлей',explore:'Explore',explore_home:'Explore',instagram_explore:'Explore',
  marketplace:'Marketplace',video_feeds:'відео-стрічка',search:'пошук',profile_feed:'профіль',instagram_profile_feed:'профіль',right_hand_column:'права колонка',an_classic:'сайти й додатки'};
-const repKey=()=>rp+'|'+rc;
-async function loadRep(){if(!tok())return;const k=repKey();if(L$.rep[k]){render();return}L$.rep[k]={loading:true};render();
- const base=rc||ACT(),f=`fields=${INS}&date_preset=${rp}`;
- try{const [tot,day,age,gen,pla,ads,cmp]=await Promise.all([gget(`${base}/insights?${f}`),gget(`${base}/insights?${f}&time_increment=1&limit=100`),
+const repKey=()=>rp+'|'+rc+(rp==='custom'?'|'+rf+'|'+rt2:'');
+async function loadRep(){if(!tok())return;if(rp==='custom'&&(!rf||!rt2||rf>rt2)){render();return}const k=repKey();if(L$.rep[k]){render();return}L$.rep[k]={loading:true};render();
+ const base=rc||ACT(),f=`fields=${INS}&${perQ()}`;
+ try{const [tot,day,age,gen,pla,ads,cmp]=await Promise.all([gget(`${base}/insights?${f}`),gall(`${base}/insights?${f}&time_increment=${perStep()}&limit=500`),
   gget(`${base}/insights?${f}&breakdowns=age&limit=50`),gget(`${base}/insights?${f}&breakdowns=gender&limit=10`),gget(`${base}/insights?${f}&breakdowns=publisher_platform,platform_position&limit=50`),
-  gget(`${base}/insights?${f.replace('fields=','fields=ad_id,ad_name,')}&level=ad&limit=200`),gget(`${base}/insights?${f.replace('fields=','fields=campaign_id,')}&level=campaign&limit=50`)]);
+  gall(`${base}/insights?${f.replace('fields=','fields=ad_id,ad_name,')}&level=ad&limit=500`),gget(`${base}/insights?${f.replace('fields=','fields=campaign_id,')}&level=campaign&limit=50`)]);
   L$.rep[k]={tot:px(tot.data?.[0]||{}),day:(day.data||[]).map(r=>({d:r.date_start,...px(r)})),age:(age.data||[]).map(r=>({l:r.age,...px(r)})),gender:(gen.data||[]).map(r=>({l:LBL[r.gender]||r.gender,...px(r)})),
    place:(pla.data||[]).map(r=>({l:(LBL[r.publisher_platform]||r.publisher_platform)+' · '+(LBL[r.platform_position]||r.platform_position.replace(/_/g,' ')),...px(r)})),ads:(ads.data||[]).map(r=>({id:r.ad_id,n:r.ad_name,...px(r)})),sp:byRes((cmp.data||[]).map(r=>[GOALS[goalOfCamp(r.campaign_id)].res,px(r)]))}}
  catch(e){L$.rep[k]={err:e.message}}if(tab==='rep'&&!stack.length)render()}
 const mainRes=()=>{if(rc)return GOALS[goalOfCamp(rc)].res;const R=L$.rep[repKey()];const t=R?.tot;if(!t)return'conv';return ['conv','lead','link'].find(x=>t[x])||'conv'};
 V.rep=()=>{if(waiting())return top()+waitCard();if(!tok())return top()+setupCard();const R=L$.rep[repKey()]||{loading:true},r=mainRes(),g=Object.values(GOALS).find(x=>x.res===r);
- let h=top('Звіт')+`<div class="seg">${PER.map(([k,l])=>`<button class="${rp===k?'on':''}" data-rp="${k}">${l}</button>`).join('')}</div>
+ let h=top('Звіт')+`<div class="seg" style="overflow-x:auto">${PER.map(([k,l])=>`<button class="${rp===k?'on':''}" data-rp="${k}" style="flex:0 0 auto;padding:9px 12px">${l}</button>`).join('')}</div>
+ ${rp==='custom'?`<div class="card"><div style="display:flex;gap:8px;align-items:center"><input type="date" id="rf" class="in" value="${rf}" min="${MAXBACK()}" style="margin:0"><span style="color:var(--mut)">—</span><input type="date" id="rt" class="in" value="${rt2}" style="margin:0"></div>
+  <div class="chips" style="margin-top:10px"><button data-rq="prev">Минулий місяць</button><button data-rq="3">3 міс</button><button data-rq="6">6 міс</button><button data-rq="24">2 роки</button><button data-rq="37">3 роки</button></div>
+  <button class="btn sm" data-rgo="1">Показати</button><div class="h2s" style="margin:8px 0 0">Meta зберігає статистику за останні 37 місяців (з ${MAXBACK().split('-').reverse().join('.')}). Старіше API не віддає.</div></div>`:''}
  <div class="chips scroll"><button class="${!rc?'on':''}" data-rc="">Усі кампанії</button>${L$.camps.map(c=>`<button class="${rc===c.id?'on':''}" data-rc="${c.id}">${esc(c.name)}</button>`).join('')}</div>`;
  if(R.loading)return h+'<div class="card"><span class="spin"></span> Рахую…</div>';if(R.err)return h+`<div class="card" style="color:var(--bad)">${esc(R.err)}</div>`;
  const t=R.tot,sp=R.sp||{conv:t.spend,lead:t.spend,link:t.spend},c=cpr(t,sp,r);
  if(!t.spend&&!t.impr)return h+`<div class="card" style="text-align:center;padding:30px 16px"><div style="font-size:30px">📭</div><b style="display:block;margin-top:8px">За цей період реклама не крутилась</b><div class="h2s" style="margin:6px 0 0">Як тільки запустиш оголошення, тут з'являться витрати, ціна результату, графік по днях і розбивки.</div>${L$.ads.length?'':'<button class="btn" data-tab2="ads">Перейти до реклами</button>'}</div>`;
  h+=`<div class="card hero"><div class="lab">${L('cpr',RES[r][3])}</div><div class="big">${c!=null?cu(c,D.cur):'—'}</div>${c!=null?`<span class="pill p-${verd(c,g.norm,sp[r])}">${VL[verd(c,g.norm,sp[r])]}</span> <span style="color:var(--mut);font-size:13px">норма ${usd(g.norm)}</span>`:''}
-  ${R.day.length>1?`<div class="fig"><svg data-ser="1"></svg></div><div class="legend"><span><i style="background:#8b5cf6"></i>витрати за день</span><span><i style="background:#22d3ee;border-radius:50%"></i>${RES[r][2]}</span></div>`:''}</div>
+  ${R.day.length>1?`<div class="fig"><svg data-ser="1"></svg></div><div class="legend"><span><i style="background:#8b5cf6"></i>витрати ${STEPL()}</span><span><i style="background:#22d3ee;border-radius:50%"></i>${RES[r][2]}</span></div>`:''}</div>
  <div class="mg"><div class="m"><span>Витрати ${q('spend')}</span><b>${usd(t.spend)}</b></div>${['conv','lead','link'].filter(x=>t[x]||x===r).map(x=>`<div class="m"><span>${RES[x][2][0].toUpperCase()+RES[x][2].slice(1)}</span><b>${fmt(t[x])}${t[x]&&cpr(t,sp,x)!=null?` <small style="font-size:12px;color:var(--mut)">по ${usd(cpr(t,sp,x))}</small>`:''}</b></div>`).join('')}
   <div class="m"><span>Охоплення</span><b>${fmt(t.reach)}</b></div><div class="m"><span>Покази</span><b>${fmt(t.impr)}</b></div><div class="m"><span>Клікабельність ${q('ctr')}</span><b>${t.impr?(t.clicks/t.impr*100).toFixed(2)+'%':'—'}</b></div><div class="m"><span>Ціна 1000 показів ${q('cpm')}</span><b>${t.impr?usd(t.spend/t.impr*1000):'—'}</b></div></div>
  <h2>Розбивка</h2><div class="seg">${Object.entries(BR).map(([k,v])=>`<button class="${rb===k?'on':''}" data-rb="${k}">${v[0]}</button>`).join('')}</div>`;
@@ -662,8 +673,8 @@ function charts(){document.querySelectorAll('svg[data-ser]').forEach(s=>{const R
  g+=`<path d="${path} L${pts.at(-1)[0].toFixed(1)} ${m.t+h} L${pts[0][0].toFixed(1)} ${m.t+h}Z" fill="url(#ar)" class="dp" style="animation-delay:1.3s"/>`;
  g+=`<path d="${path}" class="ln" style="--len:${Math.ceil(len)+2}" fill="none" stroke="#22d3ee" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
  if(ser.length<=31)g+=pts.map((p,i)=>`<circle class="dp" style="animation-delay:${350+i*40}ms" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3" fill="#07070c" stroke="#22d3ee" stroke-width="2"/>`).join('');
- g+=`<text x="${m.l}" y="12">до ${usd(ms)} на день</text><text x="${W-m.r}" y="12" text-anchor="end" style="fill:#22d3ee">${RES[r][2]}: до ${ml} на день</text>`;
- const dd=x=>x.slice(8,10)+'.'+x.slice(5,7);g+=`<text x="${m.l}" y="${H-4}">${dd(ser[0].day)}</text><text x="${W-m.r}" y="${H-4}" text-anchor="end">${dd(ser.at(-1).day)}</text>`;s.innerHTML=g})}
+ g+=`<text x="${m.l}" y="12">до ${usd(ms)} ${STEPL()}</text><text x="${W-m.r}" y="12" text-anchor="end" style="fill:#22d3ee">${RES[r][2]}: до ${ml} ${STEPL()}</text>`;
+ const st=perStep(),dd=x=>st==='monthly'?x.slice(5,7)+'.'+x.slice(2,4):x.slice(8,10)+'.'+x.slice(5,7);g+=`<text x="${m.l}" y="${H-4}">${dd(ser[0].day)}</text><text x="${W-m.r}" y="${H-4}" text-anchor="end">${dd(ser.at(-1).day)}</text>`;s.innerHTML=g})}
 
 /* ───── Мої конкуренти: додаєш сам, GitHub щотижня (або кнопкою) збирає їхню рекламу ───── */
 let compRows=null,compMsg='';
@@ -885,7 +896,9 @@ async function act(d){
  if(d.mad!==undefined){mkDraft.ad=d.mad;reMark();return}
  if(d.msave){if($('#msum'))mkDraft.s=+$('#msum').value||0;await addMark({t:mkDraft.t,ad:mkDraft.ad,s:mkDraft.s||0,d:Date.now()});okHap();toast('✓ Записано');back();return}
  // звіт
- if(d.rp){rp=d.rp;hap('soft');loadRep();return}
+ if(d.rp){rp=d.rp;hap('soft');if(rp==='custom'&&!rf){const a=new Date();a.setMonth(a.getMonth()-3);rf=isoD(a);rt2=isoD(new Date())}loadRep();return}
+ if(d.rgo){rf=$('#rf').value;rt2=$('#rt').value;if(!rf||!rt2||rf>rt2){toast('Перевір дати');return}loadRep();return}
+ if(d.rq){const a=new Date();if(d.rq==='prev'){const b=new Date(a.getFullYear(),a.getMonth(),0);rf=isoD(new Date(b.getFullYear(),b.getMonth(),1));rt2=isoD(b)}else{const n=+d.rq;a.setMonth(a.getMonth()-n);rf=isoD(a);rt2=isoD(new Date())}loadRep();return}
  if(d.rc!==undefined){rc=d.rc;hap('soft');loadRep();return}
  if(d.rb){rb=d.rb;hap('soft');render();return}
  // ідеї
@@ -926,7 +939,7 @@ async function act(d){
  if(d.open){try{tg.openLink(d.open)}catch(x){window.open(d.open)}return}
  if(d.q){const g=G[d.q];sheet(`<h3>${g[0]} <span class="pro">${g[1]}</span></h3><div style="color:#c9c9d6;font-size:15px">${g[2]}</div><button class="btn ghost" data-x="1">Зрозуміло</button>`);return}}
 const keepNc=()=>{if(!nc)return;if($('#nbudin'))nc.budget=Math.round(+$('#nbudin').value.replace(/\D/g,''))||nc.budget;if($('#nlink'))nc.link=$('#nlink').value.trim();if($('#nname'))nc.name=$('#nname').value.trim()};
-document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-cadd],[data-csave],[data-ghsave],[data-ghdel],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
+document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rgo],[data-rq],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-cadd],[data-csave],[data-ghsave],[data-ghdel],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
  if(!t)return;if(t.dataset.q)e.stopPropagation();try{await act({...t.dataset})}catch(x){err(x)}});
 render();liveLoad();
 /* Telegram кешує сторінку: якщо на GitHub уже новіша збірка — перезавантажуємось */
