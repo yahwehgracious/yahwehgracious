@@ -34,11 +34,23 @@ def load_client(slug):
     return cfg, DB(d / "data.sqlite")
 
 
+_ALIVE = {}
+
+
 def _pick(pref):
-    """Бажаний провайдер, а якщо його ключа нема — інший доступний. None = без LLM."""
+    """Бажаний провайдер; якщо ключа нема або він не відповідає (нема балансу, ліміт) — наступний. None = без LLM."""
     for name in dict.fromkeys([pref, "anthropic", "gemini"]):
         m = llm.make(name) if name else None
-        if m:
+        if not m:
+            continue
+        if name not in _ALIVE:
+            try:
+                m("Відповідай одним словом.", "ок?", max_tokens=5)
+                _ALIVE[name] = None
+            except Exception as e:  # noqa: BLE001
+                _ALIVE[name] = str(e)[:160]
+                log(f"⚠ {name} не відповідає: {_ALIVE[name]}")
+        if _ALIVE[name] is None:
             return m
     return None
 
@@ -65,7 +77,8 @@ def run(slug, now=None, force_brief=False, skip_collect=False, out=None, notify=
     analyses = an.analyze(db, winners, cfg, main_llm, video_llm)
     pats = an.patterns(winners, analyses, stats["fresh"])
 
-    ai_note = ("ШІ: " + main_llm.model) if main_llm else "⚠ Ключ ШІ не знайдено (секрет GEMINI_API_KEY), розбір шаблонний"
+    dead = "; ".join(f"{k}: {v}" for k, v in _ALIVE.items() if v)
+    ai_note = (("ШІ: " + main_llm.model) if main_llm else "⚠ Жоден ключ ШІ не працює, розбір шаблонний") + (f" ({dead})" if dead else "")
     if main_llm and an.LAST_ERROR[0]:
         ai_note = f"⚠ ШІ не відповів: {an.LAST_ERROR[0]}"
     concepts, fresh, brief_err = [], False, None
