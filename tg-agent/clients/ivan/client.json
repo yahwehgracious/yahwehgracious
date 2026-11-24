@@ -122,5 +122,8 @@
     "privacy_url": "https://yahwehgracious.github.io/yahwehgracious/tg-app/privacy.html"
   },
   "relevance_rx": "(?<!\\w)(чат-?)?бот(а|у|ом|и|ів)?(?!\\w)|chat ?gpt|(?<!\\w)gpt|(?<!\\w)(n8n|zapier)(?!\\w)|make\\.com|(ai|ші)[- ]?(агент|асистент|менеджер|консультант|співробітник|працівник|бот|систем)|штучн\\w+ інтелект\\w* (для|у|в) (бізнес|продаж)|автоматизац\\w* (бізнес|продаж|заявок|відділу|рутин|комунікац)",
-  "exclude_rx": "курс|інтенсив|навчанн|навчи|вебінар|практикум|майстер-клас|академ|професі|study|university|school|школ|go ?it|it ?step|web academy|crm|срм|демо [a-z]|тариф|пробн\\w+ період|trial"
+  "exclude_rx": "курс|інтенсив|навчанн|навчи|вебінар|практикум|майстер-клас|академ|професі|study|university|school|школ|go ?it|it ?step|web academy|crm|срм|демо [a-z]|тариф|пробн\\w+ період|trial",
+  "github": {
+    "repo": "yahwehgracious/yahwehgracious"
+  }
 }

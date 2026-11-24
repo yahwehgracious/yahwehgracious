@@ -50,6 +50,6 @@ jobs:
         run: |
           git config user.name "targetolog-bot"
           git config user.email "targetolog-bot@users.noreply.github.com"
-          git add ../tg-app/index.html clients/ivan/data.sqlite
+          git add ../tg-app/index.html clients/ivan/data.sqlite clients/ivan/competitors.json
           git diff --cached --quiet || git commit -m "ШІ-таргетолог: конкуренти й ідеї $(date +%d.%m.%Y)"
           git push

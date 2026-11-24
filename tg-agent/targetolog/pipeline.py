@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import analyze as an
 from . import brief as br
+from . import competitors as cmp
 from . import llm, miniapp, scoring, sources, telegram
 from .db import DB
 from .util import ROOT, log, now_utc
@@ -66,11 +67,35 @@ def run(slug, now=None, force_brief=False, skip_collect=False, out=None, notify=
     out_dir.mkdir(exist_ok=True)
 
     n_ads = None
-    if not skip_collect:
+    manual = cmp.read_labels(cfg)  # None — нема токена Meta (локальні тести): працюємо по-старому
+    if manual is not None and not skip_collect:
+        comps = cmp.resolve(cfg, manual)
+        pages = set()
+        if comps:
+            c2 = {**cfg, "competitor_page_ids": [c["page_id"] for c in comps if c.get("page_id")],
+                  "search_terms": [c["term"] for c in comps if c.get("term")], "source": {**cfg["source"], "fallback": None}}
+            try:
+                ads, src = sources.collect(c2)
+                ads = [a for a in ads if cmp.keep(a, comps)]
+                db.upsert_ads(ads, day)
+                pages = {a["page_id"] for a in ads}
+                n_ads = len(ads)
+                log(f"01 Ad Library: {n_ads} оголошень твоїх конкурентів ({', '.join(c['label'] for c in comps)})")
+            except Exception as e:  # noqa: BLE001
+                log(f"⚠ Бібліотека реклами не відповіла: {e}")
+                pages = set((cmp.load_state(cfg) or {}).get("pages", []))
+        cmp.save_state(cfg, comps, pages)
+    elif manual is None and not skip_collect:
         ads, src = sources.collect(cfg)
         db.upsert_ads(ads, day)
         n_ads = len(ads)
         log(f"01 Ad Library ({src}): {n_ads} оголошень, знімок {day}")
+    state = cmp.load_state(cfg)
+    if state is not None:  # ручний режим: лише твої конкуренти, без фільтрів за словами
+        cfg["_pages"] = set(state["pages"])
+        cfg.pop("relevance_rx", None)
+        cfg.pop("exclude_rx", None)
+        cfg["scoring"] = {**cfg["scoring"], "min_days": cfg["scoring"].get("manual_min_days", 7), "max_per_page": 5, "top_n": 40}
 
     winners, stats = scoring.score_creatives(db, now, cfg)
     log(f"02 Скоринг: {stats['creatives']} креативів → {stats['winners']} ≥{cfg['scoring']['min_days']} дн → топ {len(winners)}")
@@ -111,8 +136,10 @@ def run(slug, now=None, force_brief=False, skip_collect=False, out=None, notify=
 
     if notify and (cfg.get("telegram") or {}).get("chat_id"):
         t = cfg["telegram"]
+        who = ", ".join((state or {}).get("competitors", []))
         txt = (f"🔍 <b>Оновив конкурентів та ідеї</b>\n"
-               + (f"Переглянув {n_ads} оголошень. " if n_ads else "")
+               + (f"Конкуренти: {telegram.esc(who)}\n" if who else "")
+               + (f"Знайшов {n_ads} їхніх оголошень. " if n_ads is not None else "")
                + f"Окупаються (крутяться 2+ тижні): {stats['winners']}.\n"
                + (f"✨ {len(concepts)} нових сценаріїв для зйомки." if fresh else "Нових сценаріїв цього разу нема, лишив попередні."
                   + (f" Причина: {brief_err}" if brief_err else ""))

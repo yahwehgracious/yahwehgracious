@@ -24,6 +24,8 @@ def score_creatives(db, now, cfg):
     w = sc.get("weights", {"days": 0.25, "variants": 0.15, "reuse": 0.15, "refresh": 0.1, "rank": 0.35})
 
     ads = db.q("SELECT * FROM ads")
+    if cfg.get("_pages") is not None:  # ручний список конкурентів: тільки їхні сторінки
+        ads = [a for a in ads if a["page_id"] in cfg["_pages"]]
     snaps = db.q("SELECT day, ad_id, is_active FROM snapshots")
     days_list = sorted({s["day"] for s in snaps})
     last_day = days_list[-1] if days_list else None

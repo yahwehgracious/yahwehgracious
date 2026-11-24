@@ -206,8 +206,8 @@ async function loadMarks(){const now=new Date(),out=[];for(let k=0;k<3;k++){out.
 async function addMark(m){const key=mkKey(new Date());const arr=await CSj(key,[]);arr.push(m);await CS.set(key,JSON.stringify(arr.slice(-60)));L$.marks.push(m)}
 
 async function liveLoad(){if(!LC.acc){render();return}
- L$.token=await CS.get('meta_token')||'';L$.ai=await CS.get('ai_key')||'';L$.links={tg:LC.tg_link,site:LC.site_link,privacy:LC.privacy,csv:'',...await CSj('links',{})};
- await loadCrs();await loadCfg();await loadMarks();await loadIdeas();L$.norms=await CSj('norms',null);L$.nin=await CSj('norms_in',null);
+ L$.token=await CS.get('meta_token')||'';L$.ai=await CS.get('ai_key')||'';L$.gh=await CS.get('gh_token')||'';L$.links={tg:LC.tg_link,site:LC.site_link,privacy:LC.privacy,csv:'',...await CSj('links',{})};
+ await loadCrs();await loadCfg();await loadMarks();await loadIdeas();L$.norms=await CSj('norms',null);L$.comps=await CSj('comps',[]);L$.nin=await CSj('norms_in',null);
  if(!L$.token){L$.boot=false;render();return}
  L$.loading=true;render();
  try{const A=ACT();
@@ -294,6 +294,7 @@ function render(){navbar();const v=stack.at(-1);try{v?tg.BackButton.show():tg.Ba
  if(v)window.scrollTo(0,0);requestAnimationFrame(()=>{charts();countUp()})}
 const top=t=>`<div class="top"><div><div class="who">${esc(t||'ШІ-таргетолог')}${L$.loading?' · <span class="spin"></span>':''}</div><div class="name">${esc(D.client)}</div></div><button class="how" data-set="1" aria-label="Налаштування" style="padding:9px 11px;font-size:16px">⚙</button></div>`;
 const V={};
+const re0=()=>{if(stack.length)re(stack.at(-1));else render()};
 
 /* ───── Підготовка ───── */
 const steps=()=>[
@@ -659,6 +660,31 @@ function charts(){document.querySelectorAll('svg[data-ser]').forEach(s=>{const R
  g+=`<text x="${m.l}" y="12">до ${usd(ms)} на день</text><text x="${W-m.r}" y="12" text-anchor="end" style="fill:#22d3ee">${RES[r][2]}: до ${ml} на день</text>`;
  const dd=x=>x.slice(8,10)+'.'+x.slice(5,7);g+=`<text x="${m.l}" y="${H-4}">${dd(ser[0].day)}</text><text x="${W-m.r}" y="${H-4}" text-anchor="end">${dd(ser.at(-1).day)}</text>`;s.innerHTML=g})}
 
+/* ───── Мої конкуренти: додаєш сам, GitHub щотижня (або кнопкою) збирає їхню рекламу ───── */
+let compRows=null,compMsg='';
+const parseComp=v=>{v=(v||'').trim();if(!v)return null;let m=v.match(/view_all_page_id=(\d+)/)||v.match(/^(\d{6,})$/);if(m)return {kind:'fb',value:m[1]};
+ m=v.match(/instagram\.com\/([A-Za-z0-9._]+)/i)||v.match(/^@?([A-Za-z0-9._]{2,30})$/);if(m&&!/^(p|reel|stories|explore)$/i.test(m[1]))return {kind:'ig',value:m[1].toLowerCase()};return {bad:v}};
+const compShow=c=>c.kind==='ig'?'@'+c.value:'сторінка '+c.value;
+const compCard=()=>{if(!compRows)compRows=[...(L$.comps||[]).map(c=>c.kind==='ig'?'@'+c.value:c.value)];while(compRows.length<3)compRows.push('');
+ return `<div class="card"><div class="l">Твої конкуренти</div><div class="h2s" style="margin:0 0 6px">Посилання на Instagram (instagram.com/нік або @нік) чи посилання зі сторінки конкурента в бібліотеці реклами Meta. Я збираю всю їхню рекламу й розбираю, що окупається.</div>
+ ${compRows.map((v,k)=>`<input class="in" data-crow="${k}" value="${esc(v)}" placeholder="instagram.com/…" style="margin-top:8px">`).join('')}
+ <div class="row2"><button class="btn ghost sm" data-cadd="1">＋ Ще один</button><button class="btn sm" data-csave="1">Зберегти</button></div>
+ ${compMsg?`<div class="h2s" style="margin:10px 0 0;white-space:pre-wrap">${compMsg}</div>`:''}</div>`};
+document.addEventListener('input',e=>{const k=e.target.dataset?.crow;if(k!==undefined&&compRows)compRows[+k]=e.target.value});
+async function saveComps(){const parsed=compRows.map(parseComp).filter(Boolean),bad=parsed.filter(x=>x.bad);if(bad.length){compMsg='Не розпізнав: '+bad.map(x=>esc(x.bad)).join(', ');return}
+ const list=[...new Map(parsed.map(c=>[c.kind+c.value,c])).values()];const lines=[];
+ for(const c of list){if(c.kind!=='ig'||!LC.ig){lines.push('✓ '+compShow(c));continue}
+  try{const j=await gget(`${LC.ig}?fields=${encodeURIComponent(`business_discovery.username(${c.value}){name,username,followers_count}`)}`);const b=j.business_discovery||{};c.name=b.name||'';lines.push(`✓ @${c.value}${b.name?' · '+esc(b.name):''}${b.followers_count?' · '+fmt(b.followers_count)+' підписників':''}`)}
+  catch(e){lines.push(`⚠ @${c.value}: Instagram не віддав профіль (${esc(e.message.slice(0,60))}). Шукатиму за ніком; надійніше дати посилання з бібліотеки реклами`)}}
+ L$.comps=list;await CS.set('comps',JSON.stringify(list));
+ const j=await gget(`${ACT()}/adlabels?fields=id,name&limit=200`);for(const l of (j.data||[]).filter(l=>/^ai_comp /.test(l.name)))try{await fetch(`${GV}/${l.id}?access_token=${encodeURIComponent(L$.token)}`,{method:'DELETE'})}catch(e){}
+ for(const c of list)await gpost(`${ACT()}/adlabels`,{name:`ai_comp ${c.kind}=${c.value}`});
+ compRows=list.map(c=>c.kind==='ig'?'@'+c.value:c.value);
+ const run=await ghRun();compMsg=lines.join('\n')+'\n\n'+(run===true?'🚀 Оновлення запущено. За 3–5 хвилин прийде повідомлення в Telegram, тоді перезапусти застосунок.':run?'⚠ '+esc(run):'Збережено. Їхня реклама з\'явиться після оновлення: щопонеділка або кнопкою Run workflow → update на GitHub. Щоб запускати звідси, додай ключ GitHub у ⚙.')}
+async function ghRun(){const t=await CS.get('gh_token');if(!t||!LC.repo)return false;
+ try{const r=await fetch(`https://api.github.com/repos/${LC.repo}/actions/workflows/targetolog.yml/dispatches`,{method:'POST',headers:{Authorization:'Bearer '+t,Accept:'application/vnd.github+json'},body:JSON.stringify({ref:'main',inputs:{job:'update'}})});
+  return r.status===204?true:`GitHub відповів ${r.status}: перевір ключ GitHub (Actions: Read and write)`}catch(e){return 'GitHub недоступний: '+e.message}}
+
 /* ───── Ідеї ───── */
 let iseg='ideas',bt='sum',aiBusy=false;const maxd=Math.max(...D.winners.map(w=>w.days),1);
 const allIdeas=()=>[...L$.ideas.map(x=>({...x,ai:1})),...D.concepts];
@@ -667,7 +693,7 @@ V.ideas=()=>{const I=allIdeas();return top('Оновлено '+D.updated)+`<h2 s
 ${iseg==='ideas'?`<p class="h2s">Готові сценарії на основі того, що окупається в конкурентів і що працює в тебе. Щопонеділка оновлюються самі.</p>
  <button class="btn ${L$.ai?'':'ghost'}" data-aiideas="1" style="margin:0 0 12px">${aiBusy?'<span class="spin"></span> ШІ думає…':L$.ai?'✨ Згенерувати 3 нові ідеї з урахуванням твоєї статистики':'✨ Свіжі ідеї від ШІ: додай ключ у налаштуваннях'}</button>
  ${I.map((c,i)=>`<div class="item" data-idea="${i}"><div class="ico i-ai">${c.ai?'✨':i+1-L$.ideas.length}</div><div class="tx"><b>${esc(c.concept)}</b><small>${esc((c.persona||'').split('(')[0])} · ${esc((c.format||'').split(',')[0])}</small></div><span class="chev">›</span></div>`).join('')||'<div class="card">Ідеї з\'являться після оновлення.</div>'}`
-:`<p class="h2s">Рекламу, яка не окупається, довго не тримають. Тут оголошення конкурентів, що крутяться 2+ тижні ${q('days')}, і розбір, чому вони працюють.</p>
+:`${tok()?compCard():''}${CG.length?`<p class="h2s">Рекламу, яка не окупається, довго не тримають. Чим довше оголошення крутиться ${q('days')}, тим імовірніше воно приносить гроші.</p>`:`<div class="card" style="text-align:center"><div style="font-size:28px">🔍</div><b>Реклами конкурентів ще нема</b><div class="h2s" style="margin:6px 0 0">Додай конкурентів вище, після оновлення тут з'явиться їхня реклама з розбором ШІ.</div></div>`}
 ${CG.map((g,k)=>{const w=g.ads[0];return `<div class="item" data-cgrp="${k}" style="display:block"><div style="display:flex;justify-content:space-between;gap:10px"><b>${esc(g.name)}</b><span style="font-weight:800;white-space:nowrap">${g.days} днів</span></div>
  <div style="color:var(--mut);font-size:13px;margin-top:3px">${g.ads.length>1?`${g.ads.length} ${pl(g.ads.length,['оголошення','оголошення','оголошень'])}, що окупаються · `:''}${esc(String(hookOf(w)).slice(0,110))}</div><div class="dbar"><i style="width:${Math.max(6,g.days/maxd*100)}%"></i></div></div>`}).join('')}`}`};
 const hookOf=w=>(w.a?._model!=='mock'&&w.a?.hook?.text)||w.text||w.title||'';
@@ -705,6 +731,8 @@ const setView0=()=>()=>`<h2 style="margin-top:6px">Налаштування</h2>
  <div class="card"><div class="l">ШІ для текстів, розборів та ідей</div><b>${L$.ai?'✓ '+(aiProv()==='anthropic'?'Claude (Anthropic)':aiProv()==='gemini'?'Gemini (Google)':'Невідомий ключ'):'Не підключено'}</b>
   <div class="h2s" style="margin:4px 0 0">Ключ Anthropic (sk-ant-…) або Gemini (AIza…). Зберігається тільки в твоєму Telegram. Один розбір чи 3 тексти коштують кілька центів.</div>
   <input id="aik" class="in mono" placeholder="${L$.ai?esc(mask(L$.ai)):'sk-ant-… або AIza…'}"><div class="row2"><button class="btn sm" data-aisave="1">Зберегти</button>${L$.ai?'<button class="btn ghost sm" data-aidel="1">Видалити</button>':'<span></span>'}</div></div>
+ <div class="card"><div class="l">Ключ GitHub (необов'язково)</div><div class="h2s" style="margin:0 0 6px">Щоб після зміни конкурентів оновлення запускалось звідси, без GitHub. github.com → Settings → Developer settings → Fine-grained tokens → лише репозиторій ${esc(LC.repo||'')} → Actions: Read and write.</div>
+  <input id="ghk" class="in mono" placeholder="${L$.gh?'збережено · '+esc(mask(L$.gh)):'github_pat_…'}"><div class="row2"><button class="btn sm" data-ghsave="1">Зберегти</button>${L$.gh?'<button class="btn ghost sm" data-ghdel="1">Видалити</button>':'<span></span>'}</div></div>
  <div class="card"><div class="l">Таблиця клієнтів</div><div class="h2s" style="margin:0 0 6px">Google Таблиця з колонками «Дата», «Статус» (Дзвінок / Оплата), «Сума». У таблиці: Поділитися → Загальний доступ → «Усі, хто має посилання» → Читач. Скопіюй посилання й встав сюди.</div>
   <input id="lcsv" class="in" value="${esc(L$.links.csv||'')}" placeholder="https://docs.google.com/spreadsheets/d/…">
   ${L$.sheet.length?`<div class="h2s" style="margin:6px 0 0">✓ Прочитано ${L$.sheet.length} записів за 90 днів</div>`:''}</div>
@@ -874,6 +902,11 @@ async function act(d){
  if(d.askq){askQ=d.askq;re(askView());return}
  if(d.ask){askQ=$('#askt').value.trim();if(!askQ)return;if(!L$.ai){go(setView0());return}askBusy=true;re(askView());
   try{const t=await ai(SYSf(),`${aiCtx()}\n\n${acctCtx()}\n\nПитання: ${askQ}\nВідповідай конкретно під мої цифри, простою мовою, з термінами таргетолога в дужках. До 8 речень або короткий список. Формат: {"answer":"текст"}`,null,true);askA=pj(t).answer}catch(e){err(e)}askBusy=false;re(askView());return}
+ // конкуренти
+ if(d.cadd){compRows.push('');re0();return}
+ if(d.csave){if(!tok()){go(keyView());return}compMsg='<span class="spin"></span> Перевіряю й зберігаю…';re0();try{await saveComps();okHap()}catch(e){compMsg='⚠ '+esc(e.message)}re0();return}
+ if(d.ghsave){const v=$('#ghk').value.trim();if(!v)return;await CS.set('gh_token',v);L$.gh=v;toast('✓ Ключ GitHub збережено');re(setView0());return}
+ if(d.ghdel){await CS.del('gh_token');L$.gh='';re(setView0());return}
  // налаштування
  if(d.set){go(setView0());return}
  if(d.key){go(keyView());return}
@@ -888,7 +921,7 @@ async function act(d){
  if(d.open){try{tg.openLink(d.open)}catch(x){window.open(d.open)}return}
  if(d.q){const g=G[d.q];sheet(`<h3>${g[0]} <span class="pro">${g[1]}</span></h3><div style="color:#c9c9d6;font-size:15px">${g[2]}</div><button class="btn ghost" data-x="1">Зрозуміло</button>`);return}}
 const keepNc=()=>{if(!nc)return;if($('#nbudin'))nc.budget=Math.round(+$('#nbudin').value.replace(/\D/g,''))||nc.budget;if($('#nlink'))nc.link=$('#nlink').value.trim();if($('#nname'))nc.name=$('#nname').value.trim()};
-document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
+document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-cadd],[data-csave],[data-ghsave],[data-ghdel],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
  if(!t)return;if(t.dataset.q)e.stopPropagation();try{await act({...t.dataset})}catch(x){err(x)}});
 render();liveLoad();
 /* Telegram кешує сторінку: якщо на GitHub уже новіша збірка — перезавантажуємось */
@@ -909,7 +942,7 @@ def build(cfg, now, stats, winners, analyses, concepts):
                     for w in sorted(winners, key=lambda w: (w.get("text_source") != "body", -w["days"]))],
         "concepts": concepts or [],
         "live": ({"acc": meta["ad_account_id"], "page": launch.get("page_id"), "ig": launch.get("instagram_user_id"),
-                  "ig_name": launch.get("instagram_username", ""), "budget": launch.get("daily_budget", 135),
+                  "ig_name": launch.get("instagram_username", ""), "repo": (cfg.get("github") or {}).get("repo", ""), "budget": launch.get("daily_budget", 135),
                   "countries": launch.get("countries", ["UA"]), "link": launch.get("link", "https://www.instagram.com/"),
                   "tg_link": launch.get("tg_link", ""), "site_link": launch.get("site_link", ""), "privacy": launch.get("privacy_url", ""),
                   "v": meta.get("api_version", "v24.0"), "ai_model": launch.get("ai_model", "claude-sonnet-5-5"),
