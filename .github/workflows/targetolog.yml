@@ -44,6 +44,7 @@ jobs:
       - run: python -m targetolog update ivan --out ../tg-app/index.html --notify ${{ github.event_name == 'workflow_dispatch' && '--brief' || '' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       - name: commit
