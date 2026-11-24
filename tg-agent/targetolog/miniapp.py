@@ -137,6 +137,7 @@ const DAY=864e5;
 const G={
  spend:['Витрати','Spend','Скільки грошей Meta списала за показ реклами за вибраний період.'],
  res:['Результати','Results','Те, за що ти платиш: переписки в Direct, заявки з форми або переходи в Telegram/на сайт. Залежить від мети кампанії.'],
+ cards:['Розбивка по картках','Carousel card breakdown','Скільки кліків зібрала кожна картка каруселі. Таргетологи дивляться, чи гортають далі першої: якщо все на першій, решта карток не працює.'],
  cpr:['Ціна результату','Cost per result','Скільки коштує одна переписка, заявка чи перехід. Головна цифра: чим менша, тим краще. Для переписок таргетологи кажуть CPL або cost per conversation.'],
  cl:['Клієнти','Qualified / CAC','Переписки, які дійшли до дзвінка чи оплати. Їх відмічаєш ти (або вони підтягуються з таблиці). Саме вони показують, чи окупається реклама.'],
  norm:['Норма','Target CPA','Скільки максимум можна платити за один результат, щоб реклама окупалась. Рахується з твого середнього чека, частки на рекламу і того, скільки переписок стають клієнтами. Задається в ⚙ → Норми.'],
@@ -594,6 +595,25 @@ async function launchCr(c,cid){const sets=setsOf(cid);if(!sets.length)throw new 
   for(const s of sets){const ad=(await gpost(`${ACT()}/ads`,{name:`#${c.id}${c.texts.length>1?'-'+LET[k]:''} ${c.headline||c.texts[k].slice(0,40)}${isRt(s)?' · ретаргет':''}`,adset_id:s.id,creative:JSON.stringify({creative_id:crid}),status:'ACTIVE'})).id;
    c.ads.push({ad,cr:crid,set:s.id,k,camp:cid})}}
  c.camp=cid;c.error=null}
+/* розбивка каруселі по картках */
+const CARD={};
+async function loadCards(c){const res=c.camp?GOALS[goalOfCamp(c.camp)].res:'link',by={};
+ for(const ad of new Set(c.ads.map(x=>x.ad))){const j=await gget(`${ad}/insights?fields=actions&action_breakdowns=action_type,action_carousel_card_id,action_carousel_card_name&date_preset=maximum`);
+  for(const r of j.data||[])for(const a of r.actions||[]){const id=a.action_carousel_card_id;if(!id)continue;const o=by[id]=by[id]||{id,name:a.action_carousel_card_name||'',t:{}};o.t[a.action_type]=(o.t[a.action_type]||0)+(+a.value||0)}}
+ const got=Object.values(by).map(o=>({...o,link:o.t.link_click||0,res:Math.max(0,...RT[res].map(k=>o.t[k]||0))})),rows=c.cards.map(()=>null),left=[];
+ for(const o of got){const i=o.name?c.cards.findIndex((x,k)=>!rows[k]&&x.t&&x.t===o.name):-1;if(i>=0)rows[i]=o;else left.push(o)}
+ left.sort((a,b)=>String(a.id).localeCompare(String(b.id),'en',{numeric:true}));for(let k=0;k<rows.length&&left.length;k++)if(!rows[k])rows[k]=left.shift();
+ CARD[c.id]={rows,res,any:got.length>0}}
+const cardsBlock=c=>{const d=CARD[c.id];
+ if(!d){if(!CARD['l'+c.id]){CARD['l'+c.id]=1;loadCards(c).catch(e=>{CARD[c.id]={err:e.message}}).finally(()=>{delete CARD['l'+c.id];render()})}return `<h2>Картки</h2><div class="card"><small style="color:var(--mut)">Завантажую статистику по картках…</small></div>`}
+ if(d.err)return `<h2>Картки</h2><div class="card"><small style="color:var(--mut)">Meta не віддала розбивку: ${esc(d.err.slice(0,140))}</small></div>`;
+ if(!d.any)return `<h2>Картки</h2><div class="card"><small style="color:var(--mut)">Поки нема дій на картках. Розбивка з'явиться після перших кліків.</small></div>`;
+ const showRes=d.res!=='link',tot=d.rows.reduce((m,r)=>m+(r?.link||0),0)||1,mx=Math.max(1,...d.rows.map(r=>r?.link||0));
+ const first=d.rows[0]?.link||0,tail=d.rows.slice(1).reduce((m,r)=>m+(r?.link||0),0);
+ const hint=d.rows.length>1?(first/tot>=.7?'Майже всі кліки на першій картці: далі гортають мало. Посиль другу картку або перенеси найсильнішу на початок.':(()=>{const w=d.rows.reduce((b,r,i)=>(r?.link||0)>(d.rows[b]?.link||0)?i:b,0);return w?`Найбільше кліків на картці ${w+1}. Спробуй поставити її першою: перша картка бачать усі, решту лише ті, хто гортає.`:'Кліки розподілені рівно: карусель гортають.'})()):'';
+ return `<h2>Картки ${q('cards')}</h2><div class="card">${d.rows.map((r,i)=>{const n=r?.link||0;return `<div style="margin:${i?12:0}px 0 0"><div style="display:flex;justify-content:space-between;gap:10px"><small style="color:var(--ink)">${i+1}. ${esc(c.cards[i]?.t||'Картка '+(i+1))}</small><small><b>${fmt(n)}</b> ${pl(n,['клік','кліки','кліків'])}${showRes&&r?.res?` · ${rn(r.res,d.res)}`:''}</small></div>
+  <div style="height:6px;border-radius:3px;background:var(--card2);margin-top:6px"><div style="height:6px;border-radius:3px;background:var(--g1);width:${Math.round(n/mx*100)}%"></div></div></div>`}).join('')}
+  ${hint?`<div class="h2s" style="margin:12px 0 0">${hint}</div>`:''}<div class="h2s" style="margin:8px 0 0">За весь час. Meta рахує кліки по картках, а не скільки людей догортало до кожної, тому це оцінка інтересу, а не точний «відвал».</div></div>`};
 const crView=id=>()=>{const c=L$.crs.find(x=>x.id==id);if(!c)return'';const s=crSt(c),i=crIns(c),gk=c.camp?goalOfCamp(c.camp):null,g=gk?GOALS[gk]:null;
  const ads=c.ads.map(x=>L$.ads.find(a=>a.id===x.ad)).filter(Boolean),rj=ads.filter(a=>/DISAPPROVED|WITH_ISSUES/.test(a.effective_status));
  const vs=c.texts.map((t,k)=>{const ids=c.ads.filter(x=>x.k===k).map(x=>x.ad),x=insOf(ids),act=ids.some(a=>L$.ads.find(z=>z.id===a)?.effective_status==='ACTIVE');return {t,k,ids,x,act,cpr:g?cost(x,g.res):null}});
@@ -604,6 +624,7 @@ const crView=id=>()=>{const c=L$.crs.find(x=>x.id==id);if(!c)return'';const s=cr
  ${c.note?`<div class="hint" style="cursor:default"><div class="ico i-mid">!</div><div class="tx"><small style="color:var(--ink)">${esc(c.note)}</small></div></div>`:''}
  ${rj.length?rejCard([...new Set(rj.flatMap(reasons))],null):''}
  ${c.ads.length&&g?`<div class="mg"><div class="m"><span>Витрати ${q('spend')}</span><b>${usd(i.spend)}</b></div><div class="m"><span>${RES[g.res][2][0].toUpperCase()+RES[g.res][2].slice(1)} ${q('res')}</span><b>${fmt(i[g.res])}</b></div><div class="m"><span>${RES[g.res][3]} ${q('cpr')}</span><b>${usd(cost(i,g.res))}</b></div><div class="m"><span>Клікабельність ${q('ctr')}</span><b>${i.impr?(i.clicks/i.impr*100).toFixed(2)+'%':'—'}</b></div></div>`:''}
+ ${c.kind==='carousel'&&c.ads.length?cardsBlock(c):''}
  <h2>${vs.length>1?'Варіанти тексту':'Текст'}</h2>${vs.map(v=>`<div class="card">${vs.length>1?`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>Варіант ${LET[v.k]}</b>${best&&best.k===v.k?'<span class="pill p-good">найдешевший</span>':v.ids.length&&!v.act?'<span class="pill p-learn">не показується</span>':''}</div>`:''}
   <div class="copy" style="margin:0">${esc(v.t)}</div>${v.ids.length&&g?`<div class="src">${usd(v.x.spend)} · ${rn(v.x[g.res],g.res)}${v.cpr!=null?' · '+usd(v.cpr)+' за '+RES[g.res][0]:''}</div>`:''}
   <div class="row2"><button class="btn ghost sm" data-edit="${c.id}:${v.k}">✎ Змінити текст</button>${v.act&&vs.length>1?`<button class="btn ghost sm" data-vpause="${c.id}:${v.k}" style="color:var(--bad)">Вимкнути варіант</button>`:'<span></span>'}</div></div>`).join('')}
