@@ -8,9 +8,14 @@ from datetime import datetime, timezone
 
 APP = r"""<!doctype html><html lang="uk"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07070c"><meta name="color-scheme" content="dark">
+<style>html,body{background:#07070c;color:#f4f4f8;margin:0}</style>
 <title>ШІ-таргетолог</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<script>/* одразу фарбуємо Telegram у темний і кажемо «готово», щоб не блимав білий екран завантаження */
+try{const w=window.Telegram.WebApp;w.setHeaderColor?.('#07070c');w.setBackgroundColor?.('#07070c');w.setBottomBarColor?.('#07070c');w.expand();w.ready()}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
 :root{--bg:#07070c;--card:rgba(255,255,255,.045);--card2:rgba(255,255,255,.08);--line:rgba(255,255,255,.09);--ink:#f4f4f8;--mut:#9a9ab0;
 --g1:#8b5cf6;--g2:#22d3ee;--good:#34d399;--bad:#fb7185;--mid:#fbbf24;--learn:#94a3b8}
