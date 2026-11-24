@@ -325,8 +325,11 @@ function navbar(){const n=recs().length+rejected().length;$('#tabs').innerHTML=T
 $('#tabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;tab=b.dataset.tab;stack=[];hap('soft');render();if(tab==='rep')loadRep()};
 const go=v=>{stack.push(v);hap();render()},back=()=>{stack.pop();render()},re=v=>{stack[stack.length-1]=v;render();return true};
 try{tg.BackButton.onClick(back)}catch(e){}
+/* анімацію появи граємо лише при переході на вкладку; оновлення даних (Meta, таблиця) перемальовують без «зникання» */
+let animTab=null;
 function render(){navbar();const v=stack.at(-1);try{v?tg.BackButton.show():tg.BackButton.hide()}catch(e){}
- $('#app').innerHTML=(v&&!IN_TG?`<button class="how" data-back="1" style="margin:2px 0 12px">‹ Назад</button>`:'')+`<div class="${v?'':'stagger'}">${(v||V[tab])()}</div>`;
+ const anim=!v&&animTab!=null&&animTab!==tab;if(!v)animTab=tab;
+ $('#app').innerHTML=(v&&!IN_TG?`<button class="how" data-back="1" style="margin:2px 0 12px">‹ Назад</button>`:'')+`<div class="${anim?'stagger':''}">${(v||V[tab])()}</div>`;
  if(v)window.scrollTo(0,0);requestAnimationFrame(()=>{charts();countUp()})}
 const top=t=>`<div class="top"><div><div class="who">${esc(t||'ШІ-таргетолог')}${L$.loading?' · <span class="spin"></span>':''}</div><div class="name">${esc(D.client)}</div></div><button class="how" data-set="1" aria-label="Налаштування" style="padding:9px 11px;font-size:16px">⚙</button></div>`;
 const V={};
