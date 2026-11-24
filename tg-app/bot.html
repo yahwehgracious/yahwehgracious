@@ -1,0 +1,117 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ШІ-таргетолог · бот</title>
+<style>
+body{margin:0;background:#07070c;color:#f4f4f8;font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif}
+.w{max-width:760px;margin:0 auto;padding:24px}
+h1{font-size:22px;margin:0 0 4px}.mut{color:#9a9ab0;font-size:13px}
+.card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:16px;margin:14px 0}
+label{display:block;font-size:13px;color:#9a9ab0;margin:10px 0 4px}
+input{width:100%;box-sizing:border-box;background:#11111a;border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:10px;padding:10px;font:14px monospace}
+button{border:0;border-radius:10px;padding:11px 16px;font-weight:700;color:#fff;background:linear-gradient(135deg,#8b5cf6,#22d3ee);cursor:pointer;margin-top:12px}
+button.g{background:#222232}
+#st{display:flex;align-items:center;gap:8px;font-weight:700}#st i{width:10px;height:10px;border-radius:50%;background:#fb7185}
+#st.on i{background:#34d399;box-shadow:0 0 10px #34d399}
+#log{font:12.5px ui-monospace,monospace;white-space:pre-wrap;max-height:380px;overflow:auto;color:#c9c9d6}
+.ok{color:#34d399}.bad{color:#fb7185}
+</style></head><body><div class="w">
+<h1>ШІ-таргетолог · бот</h1>
+<div class="mut">Поки ця вкладка відкрита, бот @targmybot працює: приймає креативи й запускає рекламу. Ключі зберігаються лише в цьому браузері.</div>
+<div class="card"><div id="st"><i></i><span>Зупинено</span></div>
+<div id="keys"><label>Ключ Telegram-бота (від @BotFather)</label><input id="tgk" type="password" autocomplete="off" placeholder="123456:ABC…">
+<label>Ключ Meta (META_ACCESS_TOKEN)</label><input id="mk" type="password" autocomplete="off" placeholder="EAA…">
+<button id="save">Зберегти й запустити</button></div>
+<button class="g" id="reset" style="display:none">Змінити ключі</button></div>
+<div class="card"><b>Журнал</b><div id="log"></div></div>
+</div>
+<script>
+const CFG={acc:'4098410030468026',page:'1429384753597311',ig:'17841474663213645',budget:135,countries:['UA'],ageMin:23,ageMax:60,
+ admins:[437822802],app:'https://yahwehgracious.github.io/yahwehgracious/tg-app/',v:'v24.0',campaign:'ШІ-таргетолог · Direct',adset:'Тест креативів'};
+const $=s=>document.querySelector(s),LS=localStorage;
+const S={get:k=>JSON.parse(LS.getItem('tb_'+k)||'null'),set:(k,v)=>LS.setItem('tb_'+k,JSON.stringify(v))};
+const log=(t,c='')=>{const d=document.createElement('div');d.className=c;d.textContent=`${new Date().toLocaleTimeString()}  ${t}`;$('#log').prepend(d)};
+let TG='',MT='',running=false;
+const tg=(m,p)=>fetch(`https://api.telegram.org/bot${TG}/${m}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p||{})}).then(r=>r.json());
+const G=`https://graph.facebook.com/${CFG.v}`;
+async function gpost(path,params){const b=new URLSearchParams({...params,access_token:MT});const r=await fetch(`${G}/${path}`,{method:'POST',body:b});const j=await r.json();if(j.error)throw new Error(j.error.error_user_msg||j.error.message);return j}
+async function gget(path){const r=await fetch(`${G}/${path}${path.includes('?')?'&':'?'}access_token=${encodeURIComponent(MT)}`);const j=await r.json();if(j.error)throw new Error(j.error.message);return j}
+const crs=()=>S.get('creatives')||[],saveCrs=l=>S.set('creatives',l);
+const send=(chat,text,kb)=>tg('sendMessage',{chat_id:chat,text,parse_mode:'HTML',disable_web_page_preview:true,...(kb?{reply_markup:{inline_keyboard:kb}}:{})});
+const esc=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function parseCap(c){c=(c||'').trim();const m=c.match(/^заголовок\s*:\s*(.+)/i);if(m){const nl=c.indexOf('\n');return [m[1].split('\n')[0].trim(),nl>0?c.slice(nl+1).trim():'']}return ['',c]}
+function card(cr){const st={draft:'📝 чернетка',live:'🟢 у рекламі',error:'⚠ помилка'}[cr.status]||cr.status;
+ const t=`<b>Креатив #${cr.id}</b> · ${st}\n`+(cr.headline?`<b>${esc(cr.headline)}</b>\n`:'')+(cr.text?esc(cr.text).slice(0,700):'<i>Тексту нема. Відповідай на це повідомлення текстом оголошення.</i>')+(cr.status==='error'&&cr.error?`\n\n⚠ ${esc(cr.error).slice(0,300)}`:'');
+ const kb=cr.status==='live'?null:[[{text:'🚀 Запустити в рекламу',callback_data:`go|${cr.id}`}],[{text:'🗑 Видалити',callback_data:`del|${cr.id}`}]];return [t,kb]}
+
+async function tgFile(fid){const f=await tg('getFile',{file_id:fid});if(!f.ok)throw new Error('Telegram: '+f.description);
+ const r=await fetch(`https://api.telegram.org/file/bot${TG}/${f.result.file_path}`);if(!r.ok)throw new Error('не вдалося скачати файл з Telegram');return [await r.blob(),f.result.file_path.split('/').pop()]}
+async function ensureCampaign(){let cid=S.get('campaign_id'),sid=S.get('adset_id');
+ if(!cid){cid=(await gpost(`act_${CFG.acc}/campaigns`,{name:CFG.campaign,objective:'OUTCOME_ENGAGEMENT',status:'ACTIVE',special_ad_categories:'[]',buying_type:'AUCTION',is_adset_budget_sharing_enabled:'false'})).id;S.set('campaign_id',cid);log('Кампанію створено '+cid,'ok')}
+ if(!sid){sid=(await gpost(`act_${CFG.acc}/adsets`,{name:CFG.adset,campaign_id:cid,status:'ACTIVE',daily_budget:String(CFG.budget*100),billing_event:'IMPRESSIONS',
+   bid_strategy:'LOWEST_COST_WITHOUT_CAP',destination_type:'INSTAGRAM_DIRECT',optimization_goal:'CONVERSATIONS',promoted_object:JSON.stringify({page_id:CFG.page}),
+   targeting:JSON.stringify({geo_locations:{countries:CFG.countries},age_min:CFG.ageMin,age_max:CFG.ageMax,targeting_automation:{advantage_audience:1}})})).id;S.set('adset_id',sid);log('Групу оголошень створено '+sid,'ok')}
+ return sid}
+async function launch(cr){
+ if(!MT)throw new Error('нема ключа Meta');
+ if(!cr.text)throw new Error('додай текст оголошення: відповідай на картку креативу');
+ const [blob,name]=await tgFile(cr.file_id);
+ const cta={type:'INSTAGRAM_MESSAGE',value:{app_destination:'INSTAGRAM_DIRECT'}};
+ const spec={page_id:CFG.page,instagram_user_id:CFG.ig};
+ if(cr.kind==='image'){
+  if(!cr.ref){const fd=new FormData();fd.append('access_token',MT);fd.append('filename',blob,name||'creative.jpg');
+   const j=await (await fetch(`${G}/act_${CFG.acc}/adimages`,{method:'POST',body:fd})).json();if(j.error)throw new Error(j.error.error_user_msg||j.error.message);cr.ref=Object.values(j.images)[0].hash}
+  spec.link_data={image_hash:cr.ref,message:cr.text,name:cr.headline||'',link:'https://www.instagram.com/hladysh.ivan/',call_to_action:cta};
+ }else{
+  if(!cr.ref){const fd=new FormData();fd.append('access_token',MT);fd.append('source',blob,name||'creative.mp4');
+   const j=await (await fetch(`${G}/act_${CFG.acc}/advideos`,{method:'POST',body:fd})).json();if(j.error)throw new Error(j.error.error_user_msg||j.error.message);cr.ref=j.id}
+  for(let i=0;i<30;i++){const s=await gget(`${cr.ref}?fields=status`);if(s.status?.video_status==='ready')break;await new Promise(r=>setTimeout(r,5000))}
+  const th=await gget(`${cr.ref}/thumbnails`);const thumb=(th.data||[]).find(t=>t.is_preferred)||th.data?.[0];
+  spec.video_data={video_id:cr.ref,message:cr.text,title:cr.headline||'',call_to_action:cta,...(thumb?{image_url:thumb.uri}:{})};
+ }
+ const sid=await ensureCampaign();
+ const crid=(await gpost(`act_${CFG.acc}/adcreatives`,{name:`ШІ · креатив ${cr.id}`,object_story_spec:JSON.stringify(spec)})).id;
+ const ad=await gpost(`act_${CFG.acc}/ads`,{name:`#${cr.id} ${cr.headline||cr.text.slice(0,40)}`,adset_id:sid,creative:JSON.stringify({creative_id:crid}),status:'ACTIVE'});
+ return ad.id}
+
+async function handle(u){
+ const cb=u.callback_query;
+ if(cb){if(!CFG.admins.includes(cb.from.id))return tg('answerCallbackQuery',{callback_query_id:cb.id,text:'Немає прав'});
+  const [act,id]=cb.data.split('|');const l=crs();const cr=l.find(x=>x.id==id);const chat=cb.message.chat.id;
+  await tg('answerCallbackQuery',{callback_query_id:cb.id,text:act==='go'?'Запускаю…':'Видаляю…'});
+  if(!cr)return send(chat,'Нема такого креативу');
+  if(act==='del'){saveCrs(l.filter(x=>x.id!=id));return send(chat,`Креатив #${id} видалено`)}
+  try{log(`Запуск креативу #${id}…`);const adId=await launch(cr);cr.status='live';cr.ad_id=adId;cr.error=null;saveCrs(l);log(`#${id} → оголошення ${adId}`,'ok');
+   await send(chat,`🚀 Запущено. Оголошення ${adId} пройде перевірку Meta (зазвичай до кількох годин).`)}
+  catch(e){cr.status='error';cr.error=e.message;saveCrs(l);log(`#${id}: ${e.message}`,'bad');await send(chat,'Не вдалося запустити: '+esc(e.message))}
+  return}
+ const m=u.message;if(!m)return;const chat=m.chat.id;
+ if(!CFG.admins.includes(m.from.id))return send(chat,'Цей бот приватний.');
+ const media=m.photo?['image',m.photo.at(-1).file_id]:m.video?['video',m.video.file_id]:m.document&&/^(image|video)/.test(m.document.mime_type||'')?[m.document.mime_type.startsWith('image')?'image':'video',m.document.file_id]:null;
+ if(media){const size=(m.video||m.document||{}).file_size||0;if(size>20*1024*1024)return send(chat,'Файл більший за 20 МБ — Telegram-бот такий не скачає. Стисни його.');
+  const l=crs();const id=(S.get('next')||1);S.set('next',id+1);const [h,t]=parseCap(m.caption);
+  const cr={id,kind:media[0],file_id:media[1],headline:h,text:t,status:'draft',created:Date.now()};l.push(cr);saveCrs(l);log(`Новий креатив #${id} (${cr.kind})`,'ok');
+  const [txt,kb]=card(cr);const r=await send(chat,txt,kb);S.set('msg_'+r.result?.message_id,id);return}
+ if(m.reply_to_message&&m.text){const id=S.get('msg_'+m.reply_to_message.message_id);if(id){const l=crs();const cr=l.find(x=>x.id==id);if(cr){const [h,t]=parseCap(m.text);cr.text=t;if(h)cr.headline=h;saveCrs(l);const [txt,kb]=card(cr);const r=await send(chat,txt,kb);S.set('msg_'+r.result?.message_id,id);return}}}
+ if(/^\/(creatives|list)/.test(m.text||'')){const l=crs();if(!l.length)return send(chat,'Креативів ще нема. Надішли фото або відео з текстом у підписі.');for(const cr of l.slice(-10)){const [txt,kb]=card(cr);const r=await send(chat,txt,kb);S.set('msg_'+r.result?.message_id,cr.id)}return}
+ if(/^\/status/.test(m.text||'')){try{const a=await gget(`act_${CFG.acc}?fields=name,amount_spent,currency,account_status,funding_source_details`);
+   return send(chat,`Кабінет <b>${esc(a.name)}</b>\nВитрачено: ${(a.amount_spent/100).toFixed(0)} ${a.currency}\nКарта: ${a.funding_source_details?'є':'нема'}\nКреативів: ${crs().length}, у рекламі: ${crs().filter(c=>c.status==='live').length}`)}
+  catch(e){return send(chat,'Meta: '+esc(e.message))}}
+ if((m.text||'').startsWith('/start go_'))return send(chat,'Запусти креатив кнопкою «🚀 Запустити» на його картці тут у чаті (/creatives — список).');
+ return send(chat,'Бот на зв\'язку.\n\n📤 Надішли фото або відео — це креатив. У підписі: перший рядок «Заголовок: …» (необов\'язково), далі текст оголошення.\n/creatives — список креативів\n/status — стан кабінету',[[{text:'📊 Відкрити звіт',web_app:{url:CFG.app}}]])}
+
+async function loop(){running=true;$('#st').className='on';$('#st span').textContent='Працює';
+ await tg('deleteWebhook',{});let off=S.get('offset')||0;
+ while(running){try{const r=await tg('getUpdates',{timeout:50,offset:off});
+   if(!r.ok){log('Telegram: '+r.description,'bad');if(r.error_code===409){log('Бот уже запущений в іншому місці (інша вкладка?). Закрий її.','bad')}await new Promise(x=>setTimeout(x,5000));continue}
+   for(const u of r.result){off=u.update_id+1;S.set('offset',off);try{await handle(u)}catch(e){log('Помилка: '+e.message,'bad')}}}
+  catch(e){await new Promise(x=>setTimeout(x,5000))}}}
+
+async function start(){TG=LS.getItem('tb_tg')||'';MT=LS.getItem('tb_meta')||'';if(!TG){$('#keys').style.display='';return}
+ $('#keys').style.display='none';$('#reset').style.display='';
+ const me=await tg('getMe');if(!me.ok){log('Ключ Telegram не підходить: '+me.description,'bad');$('#keys').style.display='';return}
+ log('Telegram: @'+me.result.username,'ok');
+ if(MT){try{const a=await gget(`act_${CFG.acc}?fields=name,funding_source_details`);log(`Meta: кабінет ${a.name}, карта ${a.funding_source_details?'є':'нема'}`,'ok')}catch(e){log('Meta: '+e.message,'bad')}}else log('Ключа Meta нема: креативи прийматиму, запуск — ні','bad');
+ loop()}
+$('#save').onclick=()=>{const a=$('#tgk').value.trim(),b=$('#mk').value.trim();if(a)LS.setItem('tb_tg',a);if(b)LS.setItem('tb_meta',b);$('#tgk').value=$('#mk').value='';start()};
+$('#reset').onclick=()=>{running=false;$('#st').className='';$('#st span').textContent='Зупинено';$('#keys').style.display='';$('#reset').style.display='none'};
+start();
+</script></body></html>
