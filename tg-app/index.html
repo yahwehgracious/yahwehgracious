@@ -153,7 +153,7 @@ const CSj=async(k,d)=>{try{return JSON.parse(await CS.get(k)||'null')??d}catch(e
 
 /* ───── Meta Graph API ───── */
 const GV=`https://graph.facebook.com/${LC.v||'v24.0'}`;
-const L$={token:'',ai:'',loading:false,acc:null,err:null,camps:[],sets:[],ads:[],ins:{},sins:{},crs:[],marks:[],sheet:[],sheetErr:null,sp90:0,cfg:{},ideas:[],rep:{},links:{},forms:null,leads:{}};
+const L$={boot:true,token:'',ai:'',loading:false,acc:null,err:null,camps:[],sets:[],ads:[],ins:{},sins:{},crs:[],marks:[],sheet:[],sheetErr:null,sp90:0,cfg:{},ideas:[],rep:{},links:{},forms:null,leads:{}};
 const meta=async(r)=>{const j=await r.json();if(j.error)throw new Error(j.error.error_user_msg||j.error.error_user_title||j.error.message);return j};
 const gget=(p,t)=>fetch(`${GV}/${p}${p.includes('?')?'&':'?'}access_token=${encodeURIComponent(t||L$.token)}`).then(meta);
 const gpost=(p,params,t)=>fetch(`${GV}/${p}`,{method:'POST',body:new URLSearchParams({...params,access_token:t||L$.token})}).then(meta);
@@ -199,7 +199,7 @@ async function addMark(m){const key=mkKey(new Date());const arr=await CSj(key,[]
 async function liveLoad(){if(!LC.acc){render();return}
  L$.token=await CS.get('meta_token')||'';L$.ai=await CS.get('ai_key')||'';L$.links={tg:LC.tg_link,site:LC.site_link,privacy:LC.privacy,csv:'',...await CSj('links',{})};
  await loadCrs();await loadCfg();await loadMarks();await loadIdeas();
- if(!L$.token){render();return}
+ if(!L$.token){L$.boot=false;render();return}
  L$.loading=true;render();
  try{const A=ACT();
   const [acc,cm,as,ads,ai,si,s90]=await Promise.all([
@@ -216,8 +216,11 @@ async function liveLoad(){if(!LC.acc){render();return}
   L$.sp90=+(s90.data?.[0]?.spend||0);
   for(const c of L$.crs){let ch=false;for(const x of c.ads){const a=L$.ads.find(z=>z.id===x.ad);if(a&&!x.camp){x.camp=a.campaign_id;x.set=a.adset_id;ch=true}}if(!c.camp&&c.ads[0]?.camp){c.camp=c.ads[0].camp;ch=true}if(ch)saveCr(c)}
  }catch(e){L$.err=e.message}
- L$.loading=false;render();loadSheet()}
+ L$.loading=false;L$.boot=false;render();loadSheet()}
 const tok=()=>!!(L$.token&&L$.acc&&!L$.err);
+/* поки читаємо ключ і чекаємо Meta — не лякаємо «не підключено» */
+const waiting=()=>(L$.boot||L$.loading)&&!L$.acc;
+const waitCard=()=>`<div class="card hero" style="text-align:center;padding:34px 16px"><span class="spin" style="width:26px;height:26px;border-width:3px"></span><div style="font-weight:800;font-size:17px;margin-top:14px">Підключаюсь до кабінету…</div><div class="h2s" style="margin:4px 0 0">Беру свіжі дані з Meta</div></div>`;
 const insOf=ids=>ids.reduce((a,id)=>add(a,L$.ins[id]||{}),zero());
 const setsOf=cid=>L$.sets.filter(s=>s.campaign_id===cid);
 const adsOf=cid=>L$.ads.filter(a=>a.campaign_id===cid);
@@ -279,7 +282,7 @@ try{tg.BackButton.onClick(back)}catch(e){}
 function render(){navbar();const v=stack.at(-1);try{v?tg.BackButton.show():tg.BackButton.hide()}catch(e){}
  $('#app').innerHTML=(v&&!IN_TG?`<button class="how" data-back="1" style="margin:2px 0 12px">‹ Назад</button>`:'')+`<div class="${v?'':'stagger'}">${(v||V[tab])()}</div>`;
  if(v)window.scrollTo(0,0);requestAnimationFrame(()=>{charts();countUp()})}
-const top=t=>`<div class="top"><div><div class="who">${esc(t||'ШІ-таргетолог')}${L$.loading?' · <span class="spin"></span>':''}</div><div class="name">${esc(D.client)}</div></div><button class="how" data-set="1">⚙ Налаштування</button></div>`;
+const top=t=>`<div class="top"><div><div class="who">${esc(t||'ШІ-таргетолог')}${L$.loading?' · <span class="spin"></span>':''}</div><div class="name">${esc(D.client)}</div></div><button class="how" data-set="1" aria-label="Налаштування" style="padding:9px 11px;font-size:16px">⚙</button></div>`;
 const V={};
 
 /* ───── Підготовка ───── */
@@ -335,14 +338,14 @@ const heroCard=()=>{const t=totals(),types=Object.keys(RES).filter(r=>t[r]),main
  <div class="funnel"><div class="fn"><b>${cu(t.spend,D.cur)}</b><span>витрати ${q('spend')}</span></div><div class="flow"></div><div class="fn hl"><b>${cu(t[main])}</b><span>${RES[main][2]} ${q('res')}</span></div></div>
  ${types.length>1?`<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:10px">${types.filter(r=>r!==main).map(r=>`<span class="chip">${rn(t[r],r)} · ${usd(cpr(t,sp,r))}</span>`).join('')}</div>`:''}
  <div style="color:var(--mut);font-size:12px;margin-top:10px;text-align:center">за останні 7 днів · <a data-tab2="rep" style="cursor:pointer">детальний звіт ›</a></div></div>`};
-const clientsCard=()=>{if(!tok())return'';const all=[...L$.marks,...L$.sheet],calls=all.filter(m=>m.t==='call').length,paid=all.filter(m=>m.t==='paid'),rev=paid.reduce((a,m)=>a+(m.s||0),0),sp=L$.sp90;
+const clientsCard=()=>{if(!tok()||(!L$.sp90&&!L$.marks.length&&!L$.sheet.length&&!L$.links.csv))return'';const all=[...L$.marks,...L$.sheet],calls=all.filter(m=>m.t==='call').length,paid=all.filter(m=>m.t==='paid'),rev=paid.reduce((a,m)=>a+(m.s||0),0),sp=L$.sp90;
  return `<h2>Клієнти з реклами</h2><p class="h2s">За 90 днів: витрачено ${usd(sp)}. ${L$.links.csv?'Підтягую з твоєї таблиці + ручні відмітки.':'Відмічай, хто дійшов до дзвінка й оплати, або підключи таблицю в налаштуваннях.'} ${q('cl')}</p>
  ${L$.sheetErr?`<div class="hint badh" data-set="1"><div class="ico i-bad">!</div><div class="tx" style="flex:1"><small style="color:var(--ink)">${L$.sheetErr}</small></div></div>`:''}
  <div class="mg"><div class="m"><span>Дзвінки <span class="pro">Qualified</span></span><b>${calls}</b></div><div class="m"><span>Ціна дзвінка <span class="pro">CPQL</span></span><b>${calls?usd(sp/calls):'—'}</b></div>
  <div class="m"><span>Оплати <span class="pro">Sales</span></span><b>${paid.length}${rev?' · '+usd(rev):''}</b></div><div class="m"><span>Ціна клієнта <span class="pro">CAC</span></span><b>${paid.length?usd(sp/paid.length):'—'}</b></div></div>
  ${rev&&sp?`<div class="card" style="text-align:center">На кожну 1 ₴ реклами повернулось <b style="color:var(--${rev>=sp?'good':'bad'})">${(rev/sp).toFixed(1)} ₴</b> <span class="pro">ROAS</span></div>`:''}
  <button class="btn ghost" data-mark="1">＋ Відмітити клієнта</button>`};
-V.home=()=>{if(!LC.acc)return top()+`<div class="card">Кабінет не налаштований.</div>`;
+V.home=()=>{if(!LC.acc)return top()+`<div class="card">Кабінет не налаштований.</div>`;if(waiting())return top()+waitCard();
  if(!tok())return top()+setupCard()+`<div class="card hero"><div class="lab">Твоя реклама</div><div style="font-size:22px;font-weight:800;margin:6px 0">${L$.loading?'Перевіряю кабінет…':L$.token?'Meta не відповіла':'Кабінет не підключено'}</div><div class="h2s" style="margin:0">${L$.err?esc(L$.err):'Встав ключ Meta, і тут з\'являться витрати, ціна результату й рішення.'}</div></div>`;
  return top('Останні 7 днів')+setupCard()+(L$.ads.length?heroCard():'')+recCard()+clientsCard()+(L$.ads.length?'':`<h2>Поки готуєш креативи</h2><div class="card" data-tab2="ideas" style="cursor:pointer"><b>${D.concepts.length+L$.ideas.length} готових сценаріїв і ${CG.length} конкурентів</b><div class="h2s" style="margin:4px 0 0">у вкладці «Ідеї» ›</div></div>`)};
 
@@ -353,7 +356,7 @@ const crSt=c=>{if(!c.ads.length)return c.error?['p-bad','помилка']:['p-mi
  return st.includes('DISAPPROVED')?['p-bad','відхилено Meta']:st.includes('WITH_ISSUES')?['p-bad','є проблема']:st.includes('ACTIVE')?['p-good','у рекламі']:st.some(s=>/REVIEW|PENDING|IN_PROCESS/.test(s))?['p-mid','на перевірці Meta']:st.includes('PAUSED')||st.includes('CAMPAIGN_PAUSED')||st.includes('ADSET_PAUSED')?['p-learn','на паузі']:['p-learn',st[0]?'не показується':'видалено в Meta']};
 const crIns=c=>insOf(c.ads.map(x=>x.ad));
 const crItem=c=>{const s=crSt(c),i=crIns(c),g=c.camp?GOALS[goalOfCamp(c.camp)]:null;return `<div class="item" data-cr="${c.id}">${c.thumb?`<img class="th" src="${esc(c.thumb)}">`:`<div class="ico i-ai">${c.kind==='video'?'🎬':'🖼'}</div>`}<div class="tx"><b>${esc(c.headline||c.texts[0].slice(0,50)||'Без назви')}</b><small>${c.ads.length&&g?`${usd(i.spend)} · ${rn(i[g.res],g.res)} за 7 дн`:esc((c.texts[0]||'').slice(0,60))}</small><span class="pill ${s[0]}" style="margin-top:8px;padding:3px 10px;font-size:12.5px">${s[1]}</span></div><span class="chev">›</span></div>`};
-V.ads=()=>{if(!tok())return top()+setupCard();
+V.ads=()=>{if(waiting())return top()+waitCard();if(!tok())return top()+setupCard();
  return top('Кампанії й креативи')+`<h2 style="margin-top:6px">Кампанії</h2><p class="h2s">Кожна кампанія має свою мету, бюджет і аудиторію ${q('goal')}</p>
  ${L$.camps.map(campItem).join('')||'<div class="card">Кампаній ще нема. Почни з переписок у Direct: для послуг це найпростіше.</div>'}
  <button class="btn${L$.camps.length?' ghost':''}" data-newcamp="1">＋ Нова кампанія</button>
@@ -612,7 +615,7 @@ async function loadRep(){if(!tok())return;const k=repKey();if(L$.rep[k]){render(
    place:(pla.data||[]).map(r=>({l:(LBL[r.publisher_platform]||r.publisher_platform)+' · '+(LBL[r.platform_position]||r.platform_position.replace(/_/g,' ')),...px(r)})),ads:(ads.data||[]).map(r=>({id:r.ad_id,n:r.ad_name,...px(r)})),sp:byRes((cmp.data||[]).map(r=>[GOALS[goalOfCamp(r.campaign_id)].res,px(r)]))}}
  catch(e){L$.rep[k]={err:e.message}}if(tab==='rep'&&!stack.length)render()}
 const mainRes=()=>{if(rc)return GOALS[goalOfCamp(rc)].res;const R=L$.rep[repKey()];const t=R?.tot;if(!t)return'conv';return ['conv','lead','link'].find(x=>t[x])||'conv'};
-V.rep=()=>{if(!tok())return top()+setupCard();const R=L$.rep[repKey()]||{loading:true},r=mainRes(),g=Object.values(GOALS).find(x=>x.res===r);
+V.rep=()=>{if(waiting())return top()+waitCard();if(!tok())return top()+setupCard();const R=L$.rep[repKey()]||{loading:true},r=mainRes(),g=Object.values(GOALS).find(x=>x.res===r);
  let h=top('Звіт')+`<div class="seg">${PER.map(([k,l])=>`<button class="${rp===k?'on':''}" data-rp="${k}">${l}</button>`).join('')}</div>
  <div class="chips scroll"><button class="${!rc?'on':''}" data-rc="">Усі кампанії</button>${L$.camps.map(c=>`<button class="${rc===c.id?'on':''}" data-rc="${c.id}">${esc(c.name)}</button>`).join('')}</div>`;
  if(R.loading)return h+'<div class="card"><span class="spin"></span> Рахую…</div>';if(R.err)return h+`<div class="card" style="color:var(--bad)">${esc(R.err)}</div>`;
