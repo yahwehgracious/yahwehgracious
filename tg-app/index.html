@@ -139,6 +139,7 @@ const G={
  freq:['Частота','Frequency','Скільки разів одна людина вже бачила цю рекламу. Більше 3 разів: люди втомлюються, клікають рідше, заявки дорожчають.'],
  ctr:['Клікабельність','CTR','Скільки людей із 100, що побачили рекламу, клікнули на неї (click-through rate). 1% і вище для такої ніші нормально.'],
  days:['Днів у показі','Days active','Скільки днів конкурент не вимикає рекламу. Збиткову рекламу довго не тримають, тож довгий показ означає, що вона окупається.'],
+ budget:['Бюджет','Daily budget','Скільки Facebook може витратити на день. За місяць виходить приблизно денний бюджет × 30. Facebook може в окремий день витратити трохи більше, але за тиждень вкладеться в середнє.'],
  learn:['Навчання','Learning phase','Перші 2–3 дні після запуску Facebook шукає, кому показувати рекламу. Цифри в цей час стрибають, тому рішення не приймаємо.']};
 const q=k=>`<span class="q" data-q="${k}"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.25"/><path d="M10 9v5"/><circle cx="10" cy="6.2" r=".6" fill="currentColor" stroke="none"/></svg></span>`;
 const L=(k,name)=>`${name||G[k][0]}<span class="pro">${G[k][1]}</span>${q(k)}`;
@@ -189,13 +190,13 @@ const LC=D.live||{};const GV=`https://graph.facebook.com/${LC.v||'v24.0'}`;
 const CS={get:k=>new Promise(r=>{try{if(!tg?.CloudStorage)throw 0;tg.CloudStorage.getItem(k,(e,v)=>r(e||!v?ls.get(k):v))}catch(e){r(ls.get(k))}}),
  set:(k,v)=>new Promise(r=>{ls.set(k,v);try{if(!tg?.CloudStorage)throw 0;tg.CloudStorage.setItem(k,v,()=>r())}catch(e){r()}}),
  del:k=>new Promise(r=>{try{localStorage.removeItem(k)}catch(e){};try{tg.CloudStorage.removeItem(k,()=>r())}catch(e){r()}})};
-const L$={token:'',loading:false,acc:null,err:null,crs:[],ads:[],ins:{}};
+const L$={token:'',loading:false,acc:null,err:null,crs:[],ads:[],ins:{},sets:[],sins:{},defBudget:null};
 const gget=async p=>{const r=await fetch(`${GV}/${p}${p.includes('?')?'&':'?'}access_token=${encodeURIComponent(L$.token)}`);const j=await r.json();if(j.error)throw new Error(j.error.error_user_msg||j.error.message);return j};
 const gpost=async(p,params)=>{const r=await fetch(`${GV}/${p}`,{method:'POST',body:new URLSearchParams({...params,access_token:L$.token})});const j=await r.json();if(j.error)throw new Error(j.error.error_user_msg||j.error.message);return j};
 const gform=async(p,fd)=>{fd.append('access_token',L$.token);const r=await fetch(`${GV}/${p}`,{method:'POST',body:fd});const j=await r.json();if(j.error)throw new Error(j.error.error_user_msg||j.error.message);return j};
 const saveCrs=()=>CS.set('crs',JSON.stringify(L$.crs.map(c=>({...c,text:(c.text||'').slice(0,900)}))));
 const CONV='onsite_conversion.messaging_conversation_started_7d';
-async function liveLoad(){if(!LC.acc)return;L$.token=await CS.get('meta_token')||'';try{L$.crs=JSON.parse(await CS.get('crs')||'[]')}catch(e){L$.crs=[]}
+async function liveLoad(){if(!LC.acc)return;L$.token=await CS.get('meta_token')||'';L$.defBudget=+(await CS.get('def_budget'))||LC.budget;try{L$.crs=JSON.parse(await CS.get('crs')||'[]')}catch(e){L$.crs=[]}
  if(!L$.token){render();return}
  L$.loading=true;render();
  try{L$.acc=await gget(`act_${LC.acc}?fields=name,currency,account_status,amount_spent,funding_source_details`);L$.err=null;
@@ -203,6 +204,9 @@ async function liveLoad(){if(!LC.acc)return;L$.token=await CS.get('meta_token')|
   const ins=await gget(`act_${LC.acc}/insights?level=ad&date_preset=last_7d&fields=ad_id,spend,impressions,clicks,actions,frequency&limit=200`);
   L$.ins={};for(const r of ins.data||[]){const a=(r.actions||[]).find(x=>x.action_type===CONV);L$.ins[r.ad_id]={spend:+r.spend,conv:a?+a.value:0,impr:+r.impressions,clicks:+r.clicks,freq:+r.frequency}}
   for(const c of L$.crs){const ad=L$.ads.find(a=>a.id===c.ad_id);if(ad)c.st=ad.effective_status}
+  const as=await gget(`act_${LC.acc}/adsets?fields=id,name,daily_budget,lifetime_budget,effective_status,campaign{name,daily_budget}&limit=50`);L$.sets=(as.data||[]).filter(x=>!/DELETED|ARCHIVED/.test(x.effective_status));
+  const ai=await gget(`act_${LC.acc}/insights?level=adset&date_preset=last_7d&fields=adset_id,spend,actions&limit=100`);L$.sins={};
+  for(const r of ai.data||[]){const a=(r.actions||[]).find(x=>x.action_type===CONV);L$.sins[r.adset_id]={spend:+r.spend,conv:a?+a.value:0}}
  }catch(e){L$.err=e.message}
  L$.loading=false;render()}
 const tok=()=>!!(L$.token&&L$.acc&&!L$.err);
@@ -249,7 +253,7 @@ async function uploadCr(){const f=draft.file;const fd=new FormData();
  fd.append('source',f,f.name);const j=await gform(`act_${LC.acc}/advideos`,fd);return {kind:'video',ref:j.id,thumb:''}}
 async function ensureAdset(){let cid=await CS.get('campaign_id'),sid=await CS.get('adset_id');
  if(!cid){cid=(await gpost(`act_${LC.acc}/campaigns`,{name:LC.campaign,objective:'OUTCOME_ENGAGEMENT',status:'ACTIVE',special_ad_categories:'[]',buying_type:'AUCTION',is_adset_budget_sharing_enabled:'false'})).id;await CS.set('campaign_id',cid)}
- if(!sid){sid=(await gpost(`act_${LC.acc}/adsets`,{name:LC.adset,campaign_id:cid,status:'ACTIVE',daily_budget:String(Math.round(LC.budget*100)),billing_event:'IMPRESSIONS',bid_strategy:'LOWEST_COST_WITHOUT_CAP',
+ if(!sid){sid=(await gpost(`act_${LC.acc}/adsets`,{name:LC.adset,campaign_id:cid,status:'ACTIVE',daily_budget:String(Math.round((L$.defBudget||LC.budget)*100)),billing_event:'IMPRESSIONS',bid_strategy:'LOWEST_COST_WITHOUT_CAP',
    destination_type:'INSTAGRAM_DIRECT',optimization_goal:'CONVERSATIONS',promoted_object:JSON.stringify({page_id:LC.page}),
    targeting:JSON.stringify({geo_locations:{countries:LC.countries},age_min:LC.age_min,age_max:LC.age_max,targeting_automation:{advantage_audience:1}})})).id;await CS.set('adset_id',sid)}
  return sid}
@@ -266,6 +270,14 @@ const keyView=()=>()=>`<h2 style="margin-top:6px">Підключення каб�
  <button class="btn" data-savekey="1">Підключити</button>${L$.token?'<button class="btn ghost" data-delkey="1">Відключити кабінет</button>':''}`;
 document.addEventListener('change',e=>{if(e.target.id!=='cf')return;const f=e.target.files[0];if(!f)return;draft={...(draft||{}),headline:$('#ch').value,text:$('#ct').value,file:f,preview:f.type.startsWith('image')?URL.createObjectURL(f):''};stack.pop();go(addView())});
 async function liveClick(d){
+ if(d.bud){budVal=null;go(budView(d.bud));return true}
+ if(d.bstep||d.bset){budVal=d.bset?+d.bset:Math.max(MINB,budVal+(+d.bstep));hap('soft');return rerenderBud()}
+ if(d.bsave){const v=budVal;const go2=async()=>{try{if(d.bsave==='def'){L$.defBudget=v;await CS.set('def_budget',String(v));toast('✓ Збережено')}
+    else{await gpost(d.bsave,{daily_budget:String(Math.round(v*100))});toast('✓ Бюджет змінено в Meta');await liveLoad()}
+    try{tg.HapticFeedback.notificationOccurred('success')}catch(e){};budVal=null;back()}catch(e){toast('Помилка: '+e.message.slice(0,80))}};
+  if(d.bsave!=='def'&&tg?.initData&&tg.showConfirm)tg.showConfirm(`Встановити ${usd(v)} на день?`,ok=>{if(ok)go2()});else go2();return true}
+ if(d.spause||d.sresume){const id=d.spause||d.sresume;const go2=async()=>{try{await gpost(id,{status:d.spause?'PAUSED':'ACTIVE'});toast(d.spause?'⏸ Групу зупинено':'▶ Групу увімкнено');await liveLoad();back()}catch(e){toast('Помилка: '+e.message.slice(0,80))}};
+  if(d.spause&&tg?.initData&&tg.showConfirm)tg.showConfirm('Зупинити всі оголошення в цій групі?',ok=>{if(ok)go2()});else go2();return true}
  if(d.key){go(keyView());return true}
  if(d.savekey){const v=$('#mk').value.trim();if(!v)return true;await CS.set('meta_token',v);toast('Перевіряю…');stack=[];await liveLoad();toast(tok()?'✓ Кабінет підключено':'Ключ не підійшов');return true}
  if(d.delkey){await CS.del('meta_token');L$.token='';L$.acc=null;stack=[];render();return true}
@@ -285,6 +297,32 @@ async function liveClick(d){
  return false}
 const t0=t=>toast(t);
 
+
+/* ───── Бюджети ───── */
+const MINB=46;
+const dB=x=>x.daily_budget?+x.daily_budget/100:x.campaign?.daily_budget?+x.campaign.daily_budget/100:null;
+const budgetCard=()=>{if(!tok())return'';
+ if(!L$.sets.length)return `<h2>Бюджет</h2><div class="card" data-bud="def" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center"><div><div class="lab">Для першого запуску</div><b style="font-size:24px">${usd(L$.defBudget)}</b><span style="color:var(--mut)"> / день</span><div class="h2s" style="margin:2px 0 0">≈ ${usd(L$.defBudget*30.4)} на місяць</div></div><span class="chev">›</span></div>`;
+ const tot=L$.sets.filter(x=>x.effective_status==='ACTIVE').reduce((a,x)=>a+(dB(x)||0),0);
+ return `<h2>Бюджет</h2><p class="h2s">Разом ${usd(tot)} на день · ≈ ${usd(tot*30.4)} на місяць ${q('budget')}</p>`+L$.sets.map(x=>{const b=dB(x),si=L$.sins[x.id]||{spend:0,conv:0},on=x.effective_status==='ACTIVE';
+  return `<div class="item" data-bud="${x.id}"><div class="ico ${on?'i-good':'i-learn'}">${on?'₴':'❚❚'}</div><div class="tx"><b>${esc(x.name)}</b><small>${on?'працює':'на паузі'} · за 7 дн ${usd(si.spend)} → ${si.conv} переписок</small></div><div class="val">${b!=null?usd(b):'—'}<small>на день</small></div></div>`}).join('')};
+let budVal=null;
+let budId=null;
+const rerenderBud=()=>{stack[stack.length-1]=budView(budId);render();return true};
+const budView=id=>()=>{budId=id;const def=id==='def',x=def?null:L$.sets.find(z=>z.id===id);const cur=def?L$.defBudget:dB(x);if(budVal==null)budVal=cur||LC.budget;
+ const si=x?L$.sins[x.id]||{spend:0,conv:0}:null,cpl=si&&si.conv?si.spend/si.conv:null,ch=cur?Math.round((budVal/cur-1)*100):0;
+ return `<div class="card hero"><div class="lab">${def?'Бюджет для першого запуску':esc(x.name)}</div>
+ <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 4px">
+  <button class="btn ghost" data-bstep="-25" style="width:58px;margin:0;font-size:22px">−</button>
+  <div style="text-align:center"><div class="big" style="margin:0">${usd(budVal)}</div><div style="color:var(--mut);font-size:13px">на день · ≈ ${usd(budVal*30.4)} на місяць</div></div>
+  <button class="btn ghost" data-bstep="25" style="width:58px;margin:0;font-size:22px">+</button></div>
+ <div class="chips" style="margin:14px 0 0;padding:0;justify-content:center;flex-wrap:wrap">${[50,100,135,200,300,500].map(v=>`<button class="${budVal==v?'on':''}" data-bset="${v}">${v} ₴</button>`).join('')}</div></div>
+ ${x?`<div class="mg"><div class="m"><span>Зараз</span><b>${usd(cur)}</b></div><div class="m"><span>Зміна</span><b style="color:var(--${ch>0?'good':ch<0?'bad':'ink'})">${ch>0?'+':''}${ch}%</b></div><div class="m"><span>Витрачено за 7 дн</span><b>${usd(si.spend)}</b></div><div class="m"><span>Ціна переписки ${q('cpl')}</span><b>${cpl?usd(cpl):'—'}</b></div></div>`:''}
+ ${Math.abs(ch)>20?`<div class="hint" style="cursor:default"><div class="ico i-mid">!</div><div class="tx" style="flex:1"><b>Зміна більше ніж на 20%</b><small style="display:block;color:var(--mut);margin-top:3px">Facebook може знову почати «навчання», і кілька днів ціна переписки стрибатиме. Безпечніше міняти поступово, не частіше ніж раз на 3 дні.</small></div></div>`:''}
+ ${budVal<MINB?`<p class="h2s" style="color:var(--bad)">Мінімум у твоєму кабінеті — ${MINB} ₴ на день.</p>`:''}
+ <button class="btn" data-bsave="${id}" ${budVal<MINB||(x&&budVal==cur)?'disabled style="opacity:.5"':''}>${def?'Зберегти':'Застосувати в Meta'}</button>
+ ${x?(x.effective_status==='ACTIVE'?`<button class="btn bad" data-spause="${x.id}">⏸ Зупинити всю групу</button>`:`<button class="btn good" data-sresume="${x.id}">▶ Увімкнути групу</button>`):''}
+ <p class="h2s" style="margin-top:10px">Мовою таргетолога: денний бюджет групи оголошень (ad set daily budget).</p>`};
 const liveAds=()=>{if(!tok())return'';const rows=L$.ads.filter(a=>a.effective_status!=='DELETED'&&a.effective_status!=='ARCHIVED');
  return `<h2>Оголошення в Meta</h2><p class="h2s">Дані за 7 днів, оновлюються щоразу, як відкриваєш застосунок.</p>`+(rows.map(a=>{const i=L$.ins[a.id]||{spend:0,conv:0};const cpl=i.conv?i.spend/i.conv:null;
   const v=a.effective_status!=='ACTIVE'?'learn':!i.conv?(i.spend>=K.target_cpl*2?'bad':'mid'):cpl<=K.target_cpl?'good':cpl<=K.target_cpl*1.5?'mid':'bad';
@@ -301,7 +339,7 @@ const icn={pause_ad:['i-bad','❚❚'],scale_adset:['i-good','↗'],alert_fatigu
 const decItem=a=>`<div class="item" data-act="${a.id}" style="${done[a.id]?'opacity:.5':''}"><div class="ico ${icn[a.kind][0]}" style="font-size:${a.kind==='pause_ad'?'13px':'19px'}">${icn[a.kind][1]}</div><div class="tx"><b>${esc(a.title)}: «${esc(a.ad_name)}»</b><small>${done[a.id]?(done[a.id]==='ok'?'✓ Підтверджено':'✕ Залишили як є'):esc(a.what)}</small><span class="pill p-${a.kind==='scale_adset'?'good':a.kind==='pause_ad'?'bad':'mid'}" style="margin-top:8px;padding:3px 10px;font-size:12.5px">${esc(a.impact)}</span></div><span class="chev">›</span></div>`;
 const cnt=k=>O.ads.filter(a=>a.v===k).length;
 V.home=()=>{const vd=O.verdict,dec=O.actions.filter(a=>a.verb),hints=O.actions.filter(a=>!a.verb);
- if(!D.ads.length)return top()+setupCard()+(tok()&&L$.ads.length?spendCard():`<div class="card hero"><div class="lab">Твоя реклама</div><div style="font-size:22px;font-weight:800;margin:6px 0">${L$.loading?'Перевіряю кабінет…':'Ще не запущена'}</div><div class="h2s" style="margin:0">Як тільки запустиш перший креатив, тут з'явиться ціна переписки, витрати й рішення.</div></div>`)+crSection()+`<h2>Поки готуєш креативи</h2><div class="card cnt" data-tab2="ideas" style="grid-template-columns:1fr 1fr"><div><b>${D.concepts.length}</b><span>сценаріїв для зйомки</span></div><div><b>${D.winners.length}</b><span>реклам конкурентів</span></div></div>`;
+ if(!D.ads.length)return top()+setupCard()+(tok()&&L$.ads.length?spendCard()+budgetCard():`<div class="card hero"><div class="lab">Твоя реклама</div><div style="font-size:22px;font-weight:800;margin:6px 0">${L$.loading?'Перевіряю кабінет…':'Ще не запущена'}</div><div class="h2s" style="margin:0">Як тільки запустиш перший креатив, тут з'явиться ціна переписки, витрати й рішення.</div></div>`)+(tok()&&!L$.ads.length?budgetCard():'')+crSection()+`<h2>Поки готуєш креативи</h2><div class="card cnt" data-tab2="ideas" style="grid-template-columns:1fr 1fr"><div><b>${D.concepts.length}</b><span>сценаріїв для зйомки</span></div><div><b>${D.winners.length}</b><span>реклам конкурентів</span></div></div>`;
  return top()+setupCard()+`
 <div class="card hero"><div class="lab">${S.cql_7d!=null?L('cpc'):L('cpl')}</div>
  <div class="big">${cu(S.cql_7d??S.cpl_7d,D.cur)}</div><span class="pill p-${vd[0]}">${vd[1]}</span> <span style="color:var(--mut);font-size:13px;margin-left:4px">норма ${usd(S.cql_7d!=null?K.target_cql:K.target_cpl)} ${q('norm')}</span>
@@ -327,7 +365,7 @@ const decView=id=>()=>{const a=O.actions.find(x=>x.id==id),ad=O.ads.find(x=>x.ad
 
 /* Реклама */
 const vic={bad:['i-bad','↘'],good:['i-good','↗'],mid:['i-mid','→'],learn:['i-learn','⏳']};
-V.ads=()=>{if(LC.acc&&!D.ads.length)return top()+crSection()+liveAds();const order={good:0,mid:1,learn:2,bad:3};const rows=[...O.ads].sort((a,b)=>order[a.v]-order[b.v]||(a.cql_7d??999)-(b.cql_7d??999));
+V.ads=()=>{if(LC.acc&&!D.ads.length)return top()+budgetCard()+crSection()+liveAds();const order={good:0,mid:1,learn:2,bad:3};const rows=[...O.ads].sort((a,b)=>order[a.v]-order[b.v]||(a.cql_7d??999)-(b.cql_7d??999));
  return top()+crSection()+`<h2 style="margin-top:${D.launch?24:6}px">Твоя реклама</h2><p class="h2s">Зелена приносить клієнтів дешево, червона зливає гроші. Справа ціна одного цільового клієнта ${q('cpc')}</p>
  ${rows.length?'':'<div class="card">Активних оголошень ще нема.</div>'}${rows.map(s=>`<div class="item" data-adv="${s.ad_id}"><div class="ico ${vic[s.v][0]}">${vic[s.v][1]}</div><div class="tx"><b>${esc(s.name)}</b><small style="color:var(--${s.v})">${esc(s.label)}</small></div><div class="val">${s.cql_7d?usd(s.cql_7d)+'<small>за клієнта</small>':s.v==='learn'?'<small>рано<br>оцінювати</small>':'<span style="color:var(--bad)">0</span><small>цільових</small>'}</div></div>`).join('')}`};
 const adView=id=>()=>{const s=O.ads.find(x=>x.ad_id===id);const acts=O.actions.filter(a=>a.ad_id===id);
@@ -394,7 +432,7 @@ function charts(){document.querySelectorAll('svg[data-ad]').forEach(s=>{const se
  s.innerHTML=g})}
 
 /* події */
-document.addEventListener('click',async e=>{const t=e.target.closest('[data-key],[data-savekey],[data-delkey],[data-add],[data-useidea],[data-save],[data-launch],[data-delcr],[data-pause],[data-resume],[data-adlive],[data-cr],[data-go],[data-tg],[data-open],[data-q],[data-how],[data-back],[data-replay],[data-tab2],[data-act],[data-adv],[data-comp],[data-idea],[data-iseg],[data-bt],[data-dec],[data-url],[data-copy]');if(!t)return;const d=t.dataset;
+document.addEventListener('click',async e=>{const t=e.target.closest('[data-bud],[data-bstep],[data-bset],[data-bsave],[data-spause],[data-sresume],[data-key],[data-savekey],[data-delkey],[data-add],[data-useidea],[data-save],[data-launch],[data-delcr],[data-pause],[data-resume],[data-adlive],[data-cr],[data-go],[data-tg],[data-open],[data-q],[data-how],[data-back],[data-replay],[data-tab2],[data-act],[data-adv],[data-comp],[data-idea],[data-iseg],[data-bt],[data-dec],[data-url],[data-copy]');if(!t)return;const d=t.dataset;
  if(await liveClick(d))return;
  if(d.adlive){go(adLiveView(d.adlive));return}
  if(d.cr){go(crView(+d.cr));return}
