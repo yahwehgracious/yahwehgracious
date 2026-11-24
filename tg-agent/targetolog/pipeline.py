@@ -59,6 +59,18 @@ def _pick(pref, heavy=False):
     return None
 
 
+def _short(err):
+    """Людською мовою замість простирадла JSON."""
+    e = str(err)
+    if "429" in e:
+        return "ліміт запитів вичерпано (безкоштовний ключ або квота)"
+    if "credit balance" in e or "billing" in e.lower():
+        return "нема балансу"
+    if "401" in e or "403" in e or "invalid" in e.lower():
+        return "ключ не підходить"
+    return e[:80]
+
+
 def run(slug, now=None, force_brief=False, skip_collect=False, out=None, notify=False):
     cfg, db = load_client(slug)
     now = now or now_utc()
@@ -85,8 +97,8 @@ def run(slug, now=None, force_brief=False, skip_collect=False, out=None, notify=
                 log(f"⚠ Бібліотека реклами не відповіла: {e}")
                 pages = set((cmp.load_state(cfg) or {}).get("pages", []))
         cmp.save_state(cfg, comps, pages)
-    elif manual is None and not skip_collect:
-        ads, src = sources.collect(cfg)
+    elif manual is None and not skip_collect and cmp.load_state(cfg) is None:
+        ads, src = sources.collect(cfg)  # старий режим (без ручного списку й без токена) — лише для локальних тестів
         db.upsert_ads(ads, day)
         n_ads = len(ads)
         log(f"01 Ad Library ({src}): {n_ads} оголошень, знімок {day}")
@@ -105,10 +117,13 @@ def run(slug, now=None, force_brief=False, skip_collect=False, out=None, notify=
     analyses = an.analyze(db, winners, cfg, main_llm, video_llm)
     pats = an.patterns(winners, analyses, stats["fresh"])
 
-    dead = "; ".join(f"{k}: {v}" for k, v in _ALIVE.items() if v)
+    dead = "; ".join(f"{k}: {_short(v)}" for k, v in _ALIVE.items() if v)
+    missing = [k for k in ("ANTHROPIC_API_KEY", "GEMINI_API_KEY") if not os.environ.get(k)]
+    if missing:
+        dead = (dead + "; " if dead else "") + "не задано секрет " + ", ".join(missing)
     ai_note = (("ШІ: " + main_llm.model) if main_llm else "⚠ Жоден ключ ШІ не працює, розбір шаблонний") + (f" ({dead})" if dead else "")
     if main_llm and an.LAST_ERROR[0]:
-        ai_note = f"⚠ ШІ не відповів: {an.LAST_ERROR[0]}"
+        ai_note = f"⚠ ШІ не відповів: {_short(an.LAST_ERROR[0])}"
     concepts, fresh, brief_err = [], False, None
     last = db.q("SELECT created FROM briefs ORDER BY id DESC LIMIT 1")
     due = force_brief or not last or (now - datetime.fromisoformat(last[0]["created"])).days >= cfg["brief"]["every_days"]
@@ -137,10 +152,18 @@ def run(slug, now=None, force_brief=False, skip_collect=False, out=None, notify=
     if notify and (cfg.get("telegram") or {}).get("chat_id"):
         t = cfg["telegram"]
         who = ", ".join((state or {}).get("competitors", []))
-        txt = (f"🔍 <b>Оновив конкурентів та ідеї</b>\n"
+        if manual is None and not os.environ.get(cfg["meta"].get("token_env", "META_ACCESS_TOKEN")):
+            warn = "⚠ Нема секрету META_ACCESS_TOKEN на GitHub: не бачу конкурентів, яких ти додав у застосунку.\n"
+        elif manual is None:
+            warn = "⚠ Meta не віддала список конкурентів (мітки в кабінеті). Перевір ключ META_ACCESS_TOKEN.\n"
+        elif not manual:
+            warn = "Конкурентів ще не додано: застосунок → Ідеї → Конкуренти.\n"
+        else:
+            warn = ""
+        txt = (f"🔍 <b>Оновив конкурентів та ідеї</b>\n" + warn
                + (f"Конкуренти: {telegram.esc(who)}\n" if who else "")
                + (f"Знайшов {n_ads} їхніх оголошень. " if n_ads is not None else "")
-               + f"Окупаються (крутяться 2+ тижні): {stats['winners']}.\n"
+               + f"У застосунку: {len(winners)} оголошень, що крутяться довше тижня.\n"
                + (f"✨ {len(concepts)} нових сценаріїв для зйомки." if fresh else "Нових сценаріїв цього разу нема, лишив попередні."
                   + (f" Причина: {brief_err}" if brief_err else ""))
                + f"\n{telegram.esc(ai_note)}")
