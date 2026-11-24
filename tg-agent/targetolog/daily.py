@@ -133,10 +133,26 @@ def reasons(ad):
     return [x for x in dict.fromkeys(out) if x]
 
 
-def message(acc_name, y, w, ads, recs, kpi):
+ACC_STATUS = {2: "кабінет заблоковано", 3: "неоплачений борг: реклама зупинена, доки не оплатиш", 7: "кабінет на перевірці ризиків Meta",
+              8: "чекає оплати", 9: "пільговий період оплати: скоро зупиниться", 100: "кабінет закривається", 101: "кабінет закрито"}
+DISABLE = {1: "порушення правил реклами", 2: "перевірка інтелектуальної власності", 3: "проблема з оплатою", 4: "неактивний або підозрілий кабінет",
+           5: "перевірка Meta", 6: "перевірка бізнесу", 7: "закрито назавжди"}
+
+
+def account_alert(acc):
+    """Блокування кабінету або проблема з оплатою: одним рядком, щоб не загубилось."""
+    st = acc.get("account_status")
+    if st in (None, 1, 201):
+        return ""
+    why = DISABLE.get(acc.get("disable_reason") or 0)
+    return f"🚨 <b>{ACC_STATUS.get(st, f'статус кабінету {st}')}</b>" + (f" · причина: {why}" if why else "") + \
+        ". Перевір у business.facebook.com → Якість облікового запису."
+
+
+def message(acc_name, y, w, ads, recs, kpi, alert=""):
     N = norms(kpi)
     main = next((r for r in ("conv", "lead", "link") if w.get(r)), "conv")
-    lines = [f"☀️ <b>Реклама · {esc(acc_name)}</b>"]
+    lines = [f"☀️ <b>Реклама · {esc(acc_name)}</b>"] + ([alert] if alert else [])
     if not w["spend"]:
         lines.append("За тиждень реклама нічого не витратила." + (" Активних оголошень нема." if not any(a.get("effective_status") == "ACTIVE" for a in ads) else ""))
     else:
@@ -183,7 +199,7 @@ def run(cfg, now=None, send=True):
     if not token:
         raise RuntimeError("META_ACCESS_TOKEN не задано")
     v, A = cfg["meta"].get("api_version", "v24.0"), f"act_{cfg['meta']['ad_account_id']}"
-    acc = _get(A, token, v, fields="name")
+    acc = _get(A, token, v, fields="name,account_status,disable_reason")
     ads = _get(f"{A}/ads", token, v, fields="id,name,adset_id,effective_status,created_time,ad_review_feedback,issues_info", limit=200)["data"]
     sets = _get(f"{A}/adsets", token, v, fields="id,name,daily_budget,effective_status,optimization_goal,created_time,updated_time", limit=100)["data"]
     ins = {r["ad_id"]: px(r) for r in _get(f"{A}/insights", token, v, level="ad", date_preset="last_7d", fields="ad_id," + INS, limit=300)["data"]}
@@ -193,7 +209,7 @@ def run(cfg, now=None, send=True):
     labels = _get(f"{A}/adlabels", token, v, fields="name", limit=200).get("data", [])
     kpi = {**cfg["kpi"], **norms_from_labels(labels)}
     recs = evaluate(ads, sets, ins, sins, kpi, now, rules_from_labels(labels))
-    txt = message(acc.get("name", ""), y, w, ads, recs, kpi)
+    txt = message(acc.get("name", ""), y, w, ads, recs, kpi, account_alert(acc))
     log(txt)
     t = cfg.get("telegram") or {}
     if send and t.get("chat_id"):
