@@ -190,21 +190,27 @@ const LC=D.live||{};const GV=`https://graph.facebook.com/${LC.v||'v24.0'}`;
 const CS={get:k=>new Promise(r=>{try{if(!tg?.CloudStorage)throw 0;tg.CloudStorage.getItem(k,(e,v)=>r(e||!v?ls.get(k):v))}catch(e){r(ls.get(k))}}),
  set:(k,v)=>new Promise(r=>{ls.set(k,v);try{if(!tg?.CloudStorage)throw 0;tg.CloudStorage.setItem(k,v,()=>r())}catch(e){r()}}),
  del:k=>new Promise(r=>{try{localStorage.removeItem(k)}catch(e){};try{tg.CloudStorage.removeItem(k,()=>r())}catch(e){r()}})};
-const L$={token:'',loading:false,acc:null,err:null,crs:[],ads:[],ins:{},sets:[],sins:{},defBudget:null};
+const L$={token:'',loading:false,acc:null,err:null,crs:[],ads:[],ins:{},sets:[],sins:{},defBudget:null,tot:{},marks:[],aud:{cities:[],radius:25,ageMin:18,ageMax:65,gender:0,adv:true}};
 const gget=async p=>{const r=await fetch(`${GV}/${p}${p.includes('?')?'&':'?'}access_token=${encodeURIComponent(L$.token)}`);const j=await r.json();if(j.error)throw new Error(j.error.error_user_msg||j.error.message);return j};
 const gpost=async(p,params)=>{const r=await fetch(`${GV}/${p}`,{method:'POST',body:new URLSearchParams({...params,access_token:L$.token})});const j=await r.json();if(j.error)throw new Error(j.error.error_user_msg||j.error.message);return j};
 const gform=async(p,fd)=>{fd.append('access_token',L$.token);const r=await fetch(`${GV}/${p}`,{method:'POST',body:fd});const j=await r.json();if(j.error)throw new Error(j.error.error_user_msg||j.error.message);return j};
-const saveCrs=()=>CS.set('crs',JSON.stringify(L$.crs.map(c=>({...c,text:(c.text||'').slice(0,900)}))));
+const normCr=c=>{c.texts=c.texts||[c.text||''];c.ad_ids=c.ad_ids||(c.ad_id?[c.ad_id]:[]);c.crids=c.crids||[];c.text=c.texts[0];c.ad_id=c.ad_ids[0]||null;return c};
+const saveCr=c=>CS.set('cr_'+c.id,JSON.stringify({...c,texts:c.texts.map(t=>(t||'').slice(0,1000)),text:undefined,st:undefined}));
+const saveCrs=async()=>{await CS.set('cr_index',JSON.stringify(L$.crs.map(c=>c.id)));for(const c of L$.crs)await saveCr(c)};
+async function loadCrs(){let idx=null;try{idx=JSON.parse(await CS.get('cr_index')||'null')}catch(e){}
+ if(!idx){try{L$.crs=JSON.parse(await CS.get('crs')||'[]').map(normCr)}catch(e){L$.crs=[]}return}
+ const out=[];for(const id of idx){try{const c=JSON.parse(await CS.get('cr_'+id)||'null');if(c)out.push(normCr(c))}catch(e){}}L$.crs=out}
 const CONV='onsite_conversion.messaging_conversation_started_7d';
-async function liveLoad(){if(!LC.acc)return;L$.token=await CS.get('meta_token')||'';L$.defBudget=+(await CS.get('def_budget'))||LC.budget;try{L$.crs=JSON.parse(await CS.get('crs')||'[]')}catch(e){L$.crs=[]}
+async function liveLoad(){if(!LC.acc)return;L$.token=await CS.get('meta_token')||'';L$.defBudget=+(await CS.get('def_budget'))||LC.budget;await loadCrs();await loadMarks();L$.rt=await CS.get('rt_adset')||null;try{L$.aud=JSON.parse(await CS.get('aud')||'null')||L$.aud}catch(e){}
  if(!L$.token){render();return}
  L$.loading=true;render();
  try{L$.acc=await gget(`act_${LC.acc}?fields=name,currency,account_status,amount_spent,funding_source_details`);L$.err=null;
-  const ads=await gget(`act_${LC.acc}/ads?fields=id,name,effective_status,created_time,creative{thumbnail_url}&limit=100`);L$.ads=ads.data||[];
+  const ads=await gget(`act_${LC.acc}/ads?fields=id,name,adset_id,effective_status,created_time,creative{thumbnail_url}&limit=200`);L$.ads=ads.data||[];
   const ins=await gget(`act_${LC.acc}/insights?level=ad&date_preset=last_7d&fields=ad_id,spend,impressions,clicks,actions,frequency&limit=200`);
   L$.ins={};for(const r of ins.data||[]){const a=(r.actions||[]).find(x=>x.action_type===CONV);L$.ins[r.ad_id]={spend:+r.spend,conv:a?+a.value:0,impr:+r.impressions,clicks:+r.clicks,freq:+r.frequency}}
   for(const c of L$.crs){const ad=L$.ads.find(a=>a.id===c.ad_id);if(ad)c.st=ad.effective_status}
-  const as=await gget(`act_${LC.acc}/adsets?fields=id,name,daily_budget,lifetime_budget,effective_status,campaign{name,daily_budget}&limit=50`);L$.sets=(as.data||[]).filter(x=>!/DELETED|ARCHIVED/.test(x.effective_status));
+  const lt=await gget(`act_${LC.acc}/insights?level=ad&date_preset=maximum&fields=ad_id,spend&limit=300`);L$.tot={};for(const r of lt.data||[])L$.tot[r.ad_id]=+r.spend;
+  const as=await gget(`act_${LC.acc}/adsets?fields=id,name,daily_budget,lifetime_budget,effective_status,campaign{id,name,daily_budget},targeting{custom_audiences}&limit=50`);L$.sets=(as.data||[]).filter(x=>!/DELETED|ARCHIVED/.test(x.effective_status));
   const ai=await gget(`act_${LC.acc}/insights?level=adset&date_preset=last_7d&fields=adset_id,spend,actions&limit=100`);L$.sins={};
   for(const r of ai.data||[]){const a=(r.actions||[]).find(x=>x.action_type===CONV);L$.sins[r.adset_id]={spend:+r.spend,conv:a?+a.value:0}}
  }catch(e){L$.err=e.message}
@@ -229,7 +235,7 @@ const spendCard=()=>{if(!tok())return'';const s=liveSum();
  <div class="funnel" style="grid-template-columns:1fr 12px 1fr"><div class="fn"><b>${cu(s.sp,D.cur)}</b><span>витрати ${q('spend')}</span></div><div class="flow"></div><div class="fn hl"><b>${cu(s.cv)}</b><span>переписки ${q('leads')}</span></div></div>
  <div style="color:var(--mut);font-size:12px;margin-top:10px;text-align:center">за останні 7 днів · усього витрачено ${usd((+L$.acc.amount_spent||0)/100)}</div></div>`};
 const crSt=c=>c.ad_id?(c.st==='ACTIVE'?['p-good','у рекламі']:c.st==='PAUSED'?['p-learn','на паузі']:/REVIEW|PENDING|IN_PROCESS/.test(c.st||'')?['p-mid','на перевірці Meta']:c.st==='DISAPPROVED'?['p-bad','відхилено Meta']:['p-good','запущено']):c.error?['p-bad','помилка']:['p-mid','чернетка'];
-const crItem=c=>{const s=crSt(c),i=L$.ins[c.ad_id];return `<div class="item" data-cr="${c.id}">${c.thumb?`<img src="${esc(c.thumb)}" style="width:46px;height:46px;border-radius:12px;object-fit:cover;flex:none">`:`<div class="ico i-ai">${c.kind==='video'?'🎬':'🖼'}</div>`}<div class="tx"><b>${esc(c.headline||c.text.slice(0,50)||'Без назви')}</b><small>${i?`${usd(i.spend)} · ${i.conv} переписок за 7 дн`:esc((c.text||'').slice(0,60))}</small><span class="pill ${s[0]}" style="margin-top:8px;padding:3px 10px;font-size:12.5px">${s[1]}</span></div><span class="chev">›</span></div>`};
+const crItem=c=>{const s=crSt(c),i=c.ad_id?crStats(c):null;return `<div class="item" data-cr="${c.id}">${c.thumb?`<img src="${esc(c.thumb)}" style="width:46px;height:46px;border-radius:12px;object-fit:cover;flex:none">`:`<div class="ico i-ai">${c.kind==='video'?'🎬':'🖼'}</div>`}<div class="tx"><b>${esc(c.headline||c.text.slice(0,50)||'Без назви')}</b><small>${i?`${usd(i.spend)} · ${i.conv} переписок за 7 дн`:esc((c.text||'').slice(0,60))}</small><span class="pill ${s[0]}" style="margin-top:8px;padding:3px 10px;font-size:12.5px">${s[1]}</span></div><span class="chev">›</span></div>`};
 const crSection=()=>LC.acc?`<h2>Креативи</h2><p class="h2s">Фото чи відео з телефона + текст. Запуск одним дотиком.</p>
  ${L$.crs.slice().reverse().map(crItem).join('')||`<div class="card" style="text-align:center"><div style="font-size:30px">📤</div><b>Креативів ще нема</b><div class="h2s" style="margin:6px 0 0">Можна взяти готовий текст із вкладки «Ідеї».</div></div>`}
  <button class="btn${L$.crs.length?' ghost':''}" data-add="1">＋ Додати креатив</button>`:'';
@@ -238,42 +244,55 @@ const addView=()=>()=>`<h2 style="margin-top:6px">Новий креатив</h2>
  <div class="sec" style="margin:0"><div class="l">Фото або відео</div><label class="btn ghost" style="text-align:center;margin:6px 0 0;cursor:pointer">${draft?.file?'✓ '+esc(draft.file.name):'Вибрати з галереї'}<input id="cf" type="file" accept="image/*,video/*" style="display:none"></label>
  ${draft?.preview?`<img src="${draft.preview}" style="width:100%;border-radius:12px;margin-top:10px">`:''}</div>
  <div class="sec"><div class="l">Заголовок (необов'язково)</div><input id="ch" value="${esc(draft?.headline||'')}" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.3);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:12px;font:15px Manrope,sans-serif"></div>
- <div class="sec"><div class="l">Текст оголошення</div><textarea id="ct" rows="7" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.3);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:12px;font:15px/1.45 Manrope,sans-serif">${esc(draft?.text||'')}</textarea></div></div>
+ <div class="sec"><div class="l">Текст оголошення · варіант A</div><textarea id="ct" rows="6" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.3);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:12px;font:15px/1.45 Manrope,sans-serif">${esc(draft?.text||'')}</textarea></div>
+ <div class="sec"><div class="l">Варіант B (необов'язково)</div><textarea id="ct2" rows="4" placeholder="Інший хук або інша пропозиція — Meta сама покаже, який працює краще" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.3);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:12px;font:15px/1.45 Manrope,sans-serif">${esc(draft?.text2||'')}</textarea></div>
+ <div class="sec"><div class="l">Варіант C (необов'язково)</div><textarea id="ct3" rows="4" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.3);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:12px;font:15px/1.45 Manrope,sans-serif">${esc(draft?.text3||'')}</textarea></div></div>
  <button class="btn" data-save="1">Зберегти</button><p class="h2s" style="margin-top:10px">Після збереження відкрий креатив і натисни «Запустити». Бюджет ${usd(LC.budget)} на день, Україна, переписки в Direct.</p>`;
-const crView=id=>()=>{const c=L$.crs.find(x=>x.id==id);if(!c)return'';const s=crSt(c),i=L$.ins[c.ad_id],ad=L$.ads.find(a=>a.id===c.ad_id);
+const crStats=c=>c.ad_ids.reduce((a,id)=>{const i=L$.ins[id];if(i){a.spend+=i.spend;a.conv+=i.conv;a.impr+=i.impr;a.clicks+=i.clicks}return a},{spend:0,conv:0,impr:0,clicks:0});
+const crView=id=>()=>{const c=L$.crs.find(x=>x.id==id);if(!c)return'';const s=crSt(c),i=crStats(c);const ads=c.ad_ids.map(a=>L$.ads.find(x=>x.id===a)).filter(Boolean);
+ const vs=c.texts.map((t,k)=>{const aid=c.ad_ids[k],x=L$.ins[aid]||{spend:0,conv:0},ad=L$.ads.find(a=>a.id===aid);return {t,k,aid,x,ad,cpl:x.conv?x.spend/x.conv:null}});
+ const best=vs.filter(v=>v.x.conv).sort((a,b)=>a.cpl-b.cpl)[0];
  return `<div class="card hero"><span class="pill ${s[0]}">${s[1]}</span><div style="font-size:20px;font-weight:800;margin:10px 0 0">${esc(c.headline||'Креатив #'+c.id)}</div>
  ${c.thumb?`<img src="${esc(c.thumb)}" style="width:100%;border-radius:14px;margin-top:12px">`:''}</div>
- ${i?`<div class="mg"><div class="m"><span>Витрати ${q('spend')}</span><b>${usd(i.spend)}</b></div><div class="m"><span>Переписки ${q('leads')}</span><b>${i.conv}</b></div><div class="m"><span>Ціна переписки ${q('cpl')}</span><b>${i.conv?usd(i.spend/i.conv):'—'}</b></div><div class="m"><span>Клікабельність ${q('ctr')}</span><b>${i.impr?(i.clicks/i.impr*100).toFixed(2)+'%':'—'}</b></div></div>`:''}
- <div class="card"><div class="sec" style="margin:0"><div class="l">Текст оголошення</div><div class="copy">${esc(c.text)}</div></div>
- ${c.error?`<div class="sec"><div class="l">Що пішло не так</div><span style="color:var(--bad)">${esc(c.error)}</span></div>`:''}</div>
- ${!c.ad_id?`<button class="btn good" data-launch="${c.id}">🚀 Запустити в рекламу</button><button class="btn ghost" data-delcr="${c.id}">Видалити</button>`:
-  ad?.effective_status==='ACTIVE'?`<button class="btn bad" data-pause="${c.ad_id}">⏸ Поставити на паузу</button>`:ad?.effective_status==='PAUSED'?`<button class="btn good" data-resume="${c.ad_id}">▶ Відновити показ</button>`:''}`};
+ ${c.ad_id?`<div class="mg"><div class="m"><span>Витрати ${q('spend')}</span><b>${usd(i.spend)}</b></div><div class="m"><span>Переписки ${q('leads')}</span><b>${i.conv}</b></div><div class="m"><span>Ціна переписки ${q('cpl')}</span><b>${i.conv?usd(i.spend/i.conv):'—'}</b></div><div class="m"><span>Клікабельність ${q('ctr')}</span><b>${i.impr?(i.clicks/i.impr*100).toFixed(2)+'%':'—'}</b></div></div>`:''}
+ <h2>${vs.length>1?'Варіанти тексту':'Текст оголошення'}</h2>${vs.map(v=>`<div class="card">${vs.length>1?`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>Варіант ${LET[v.k]}</b>${best&&best.k===v.k&&vs.length>1?'<span class="pill p-good">найкращий</span>':v.ad&&v.ad.effective_status==='PAUSED'?'<span class="pill p-learn">на паузі</span>':''}</div>`:''}
+  <div class="copy" style="margin:0">${esc(v.t)}</div>${v.aid?`<div class="src">${usd(v.x.spend)} · ${v.x.conv} переписок${v.cpl?' · '+usd(v.cpl)+' за переписку':''}${v.ad?.effective_status==='ACTIVE'&&vs.length>1?` · <a data-pause="${v.aid}" style="color:var(--bad);cursor:pointer">вимкнути варіант</a>`:''}</div>`:''}</div>`).join('')}
+ ${c.error?`<div class="card"><div class="l" style="font-size:11.5px;color:var(--mut);font-weight:800">ЩО ПІШЛО НЕ ТАК</div><span style="color:var(--bad)">${esc(c.error)}</span></div>`:''}
+ ${!c.ad_id?`<button class="btn good" data-launch="${c.id}">🚀 Запустити в рекламу${c.texts.length>1?' ('+c.texts.length+' варіанти)':''}</button><button class="btn ghost" data-delcr="${c.id}">Видалити</button>`:
+  ads.some(a=>a.effective_status==='ACTIVE')?`<button class="btn bad" data-pausecr="${c.id}">⏸ Поставити на паузу</button>`:ads.some(a=>a.effective_status==='PAUSED')?`<button class="btn good" data-resumecr="${c.id}">▶ Відновити показ</button>`:''}`};
 async function uploadCr(){const f=draft.file;const fd=new FormData();
  if(f.type.startsWith('image')){fd.append('filename',f,f.name);const j=await gform(`act_${LC.acc}/adimages`,fd);const im=Object.values(j.images)[0];return {kind:'image',ref:im.hash,thumb:im.url}}
  fd.append('source',f,f.name);const j=await gform(`act_${LC.acc}/advideos`,fd);return {kind:'video',ref:j.id,thumb:''}}
+const mainSets=()=>L$.sets.filter(x=>!(x.targeting?.custom_audiences||[]).length&&x.id!==L$.rt);
 async function ensureAdset(){let cid=await CS.get('campaign_id'),sid=await CS.get('adset_id');
+ if(!sid&&mainSets().length){sid=mainSets()[0].id;cid=cid||mainSets()[0].campaign?.id;await CS.set('adset_id',sid);if(cid)await CS.set('campaign_id',cid)}
  if(!cid){cid=(await gpost(`act_${LC.acc}/campaigns`,{name:LC.campaign,objective:'OUTCOME_ENGAGEMENT',status:'ACTIVE',special_ad_categories:'[]',buying_type:'AUCTION',is_adset_budget_sharing_enabled:'false'})).id;await CS.set('campaign_id',cid)}
  if(!sid){sid=(await gpost(`act_${LC.acc}/adsets`,{name:LC.adset,campaign_id:cid,status:'ACTIVE',daily_budget:String(Math.round((L$.defBudget||LC.budget)*100)),billing_event:'IMPRESSIONS',bid_strategy:'LOWEST_COST_WITHOUT_CAP',
    destination_type:'INSTAGRAM_DIRECT',optimization_goal:'CONVERSATIONS',promoted_object:JSON.stringify({page_id:LC.page}),
-   targeting:JSON.stringify({geo_locations:{countries:LC.countries},age_min:LC.age_min,age_max:LC.age_max,targeting_automation:{advantage_audience:1}})})).id;await CS.set('adset_id',sid)}
+   targeting:JSON.stringify(buildTargeting())})).id;await CS.set('adset_id',sid)}
  return sid}
-async function launchCr(c){const cta={type:'INSTAGRAM_MESSAGE',value:{app_destination:'INSTAGRAM_DIRECT'}};const spec={page_id:LC.page,...(LC.ig?{instagram_user_id:LC.ig}:{})};
- if(c.kind==='image')spec.link_data={image_hash:c.ref,message:c.text,name:c.headline||'',link:LC.link,call_to_action:cta};
- else{for(let i=0;i<36;i++){const s=await gget(`${c.ref}?fields=status`);if(s.status?.video_status==='ready')break;if(s.status?.video_status==='error')throw new Error('Meta не змогла обробити відео');toast('Meta обробляє відео…');await new Promise(r=>setTimeout(r,5000))}
-  const th=await gget(`${c.ref}/thumbnails`);const t=(th.data||[]).find(x=>x.is_preferred)||th.data?.[0];if(t)c.thumb=t.uri;
-  spec.video_data={video_id:c.ref,message:c.text,title:c.headline||'',call_to_action:cta,...(t?{image_url:t.uri}:{})}}
- const sid=await ensureAdset();
- const crid=(await gpost(`act_${LC.acc}/adcreatives`,{name:`ШІ · креатив ${c.id}`,object_story_spec:JSON.stringify(spec)})).id;
- return (await gpost(`act_${LC.acc}/ads`,{name:`#${c.id} ${c.headline||c.text.slice(0,40)}`,adset_id:sid,creative:JSON.stringify({creative_id:crid}),status:'ACTIVE'})).id}
+const LET='ABC';
+async function crSpec(c,text){const cta={type:'INSTAGRAM_MESSAGE',value:{app_destination:'INSTAGRAM_DIRECT'}};const spec={page_id:LC.page,...(LC.ig?{instagram_user_id:LC.ig}:{})};
+ if(c.kind==='image')spec.link_data={image_hash:c.ref,message:text,name:c.headline||'',link:LC.link,call_to_action:cta};
+ else{if(!c.thumb){for(let i=0;i<36;i++){const s=await gget(`${c.ref}?fields=status`);if(s.status?.video_status==='ready')break;if(s.status?.video_status==='error')throw new Error('Meta не змогла обробити відео');toast('Meta обробляє відео…');await new Promise(r=>setTimeout(r,5000))}
+   const th=await gget(`${c.ref}/thumbnails`);const t=(th.data||[]).find(x=>x.is_preferred)||th.data?.[0];if(t)c.thumb=t.uri}
+  spec.video_data={video_id:c.ref,message:text,title:c.headline||'',call_to_action:cta,...(c.thumb?{image_url:c.thumb}:{})}}
+ return spec}
+async function launchCr(c){const sid=await ensureAdset();c.crids=[];const ids=[];
+ for(let k=0;k<c.texts.length;k++){const crid=(await gpost(`act_${LC.acc}/adcreatives`,{name:`ШІ · креатив ${c.id}${c.texts.length>1?'-'+LET[k]:''}`,object_story_spec:JSON.stringify(await crSpec(c,c.texts[k]))})).id;c.crids.push(crid);
+  ids.push((await gpost(`act_${LC.acc}/ads`,{name:`#${c.id}${c.texts.length>1?'-'+LET[k]:''} ${c.headline||c.texts[k].slice(0,40)}`,adset_id:sid,creative:JSON.stringify({creative_id:crid}),status:'ACTIVE'})).id)}
+ const rt=await CS.get('rt_adset');if(rt){for(const crid of c.crids)try{await gpost(`act_${LC.acc}/ads`,{name:`#${c.id} ретаргет`,adset_id:rt,creative:JSON.stringify({creative_id:crid}),status:'ACTIVE'})}catch(e){}}
+ return ids}
 const keyView=()=>()=>`<h2 style="margin-top:6px">Підключення кабінету</h2><div class="card"><div class="h2s" style="margin:0 0 10px">Встав ключ доступу Meta (той, що ти згенерував для системного користувача targetolog). Він зберігається тільки в твоєму Telegram і використовується лише цим застосунком.</div>
  <textarea id="mk" rows="4" placeholder="EAA…" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.3);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:12px;font:13px ui-monospace,monospace"></textarea></div>
  <button class="btn" data-savekey="1">Підключити</button>${L$.token?'<button class="btn ghost" data-delkey="1">Відключити кабінет</button>':''}`;
-document.addEventListener('change',e=>{if(e.target.id!=='cf')return;const f=e.target.files[0];if(!f)return;draft={...(draft||{}),headline:$('#ch').value,text:$('#ct').value,file:f,preview:f.type.startsWith('image')?URL.createObjectURL(f):''};stack.pop();go(addView())});
+document.addEventListener('change',e=>{if(e.target.id!=='cf')return;const f=e.target.files[0];if(!f)return;draft={...(draft||{}),headline:$('#ch').value,text:$('#ct').value,text2:$('#ct2').value,text3:$('#ct3').value,file:f,preview:f.type.startsWith('image')?URL.createObjectURL(f):''};stack.pop();go(addView())});
 async function liveClick(d){
+ if(await recClick(d)||await audClick(d)||await markClick(d))return true;
  if(d.bud){budVal=null;go(budView(d.bud));return true}
  if(d.bstep||d.bset){budVal=d.bset?+d.bset:Math.max(MINB,budVal+(+d.bstep));hap('soft');return rerenderBud()}
  if(d.bsave){const v=budVal;const go2=async()=>{try{if(d.bsave==='def'){L$.defBudget=v;await CS.set('def_budget',String(v));toast('✓ Збережено')}
-    else{await gpost(d.bsave,{daily_budget:String(Math.round(v*100))});toast('✓ Бюджет змінено в Meta');await liveLoad()}
+    else{await gpost(d.bsave,{daily_budget:String(Math.round(v*100))});localStorage.setItem('bch_'+d.bsave,Date.now());toast('✓ Бюджет змінено в Meta');await liveLoad()}
     try{tg.HapticFeedback.notificationOccurred('success')}catch(e){};budVal=null;back()}catch(e){toast('Помилка: '+e.message.slice(0,80))}};
   if(d.bsave!=='def'&&tg?.initData&&tg.showConfirm)tg.showConfirm(`Встановити ${usd(v)} на день?`,ok=>{if(ok)go2()});else go2();return true}
  if(d.spause||d.sresume){const id=d.spause||d.sresume;const go2=async()=>{try{await gpost(id,{status:d.spause?'PAUSED':'ACTIVE'});toast(d.spause?'⏸ Групу зупинено':'▶ Групу увімкнено');await liveLoad();back()}catch(e){toast('Помилка: '+e.message.slice(0,80))}};
@@ -283,20 +302,126 @@ async function liveClick(d){
  if(d.delkey){await CS.del('meta_token');L$.token='';L$.acc=null;stack=[];render();return true}
  if(d.add){if(!tok()){go(keyView());return true}draft=draft||{};go(addView());return true}
  if(d.useidea!==undefined){const c=D.concepts[+d.useidea];draft={headline:c.headline,text:c.primary_text};tab='ads';stack=[];go(addView());return true}
- if(d.save){draft.headline=$('#ch').value.trim();draft.text=$('#ct').value.trim();
+ if(d.save){draft.headline=$('#ch').value.trim();draft.text=$('#ct').value.trim();draft.text2=$('#ct2').value.trim();draft.text3=$('#ct3').value.trim();
   if(!draft.file){toast('Вибери фото або відео');return true}if(!draft.text){toast('Напиши текст оголошення');return true}
   if(draft.file.size>100*1024*1024){toast('Файл більший за 100 МБ');return true}
   t0('Завантажую в Meta…');try{const up=await uploadCr();const id=(L$.crs.reduce((m,c)=>Math.max(m,c.id),0))+1;
-   L$.crs.push({id,...up,headline:draft.headline,text:draft.text,created:Date.now()});await saveCrs();draft=null;stack=[];tab='ads';toast('✓ Креатив збережено');go(crView(id))}
+   L$.crs.push(normCr({id,...up,headline:draft.headline,texts:[draft.text,draft.text2,draft.text3].filter(Boolean),created:Date.now()}));await saveCrs();draft=null;stack=[];tab='ads';toast('✓ Креатив збережено');go(crView(id))}
   catch(e){toast('Помилка: '+e.message.slice(0,80))}return true}
- if(d.launch){const c=L$.crs.find(x=>x.id==d.launch);const run=async()=>{toast('Запускаю…');try{c.ad_id=await launchCr(c);c.error=null;c.st='PENDING_REVIEW';await saveCrs();try{tg.HapticFeedback.notificationOccurred('success')}catch(e){}toast('🚀 Запущено, Meta перевіряє');}
+ if(d.launch){const c=L$.crs.find(x=>x.id==d.launch);const run=async()=>{toast('Запускаю…');try{c.ad_ids=await launchCr(c);c.ad_id=c.ad_ids[0];c.error=null;c.st='PENDING_REVIEW';await saveCrs();try{tg.HapticFeedback.notificationOccurred('success')}catch(e){}toast('🚀 Запущено, Meta перевіряє');}
    catch(e){c.error=e.message;await saveCrs();toast('Не вдалося, деталі на екрані')}render()};
-  if(tg?.initData&&tg.showConfirm)tg.showConfirm(`Запустити рекламу? Бюджет ${usd(LC.budget)} на день.`,ok=>{if(ok)run()});else run();return true}
- if(d.delcr){L$.crs=L$.crs.filter(x=>x.id!=d.delcr);await saveCrs();back();return true}
+  if(tg?.initData&&tg.showConfirm)tg.showConfirm(`Запустити ${c.texts.length>1?c.texts.length+' варіанти ':''}рекламу? Бюджет ${usd(L$.defBudget||LC.budget)} на день на групу.`,ok=>{if(ok)run()});else run();return true}
+ if(d.pausecr||d.resumecr){const c=L$.crs.find(x=>x.id==(d.pausecr||d.resumecr));try{for(const a of c.ad_ids)await gpost(a,{status:d.pausecr?'PAUSED':'ACTIVE'});toast(d.pausecr?'⏸ На паузі':'▶ Показ відновлено');await liveLoad()}catch(e){toast('Помилка: '+e.message.slice(0,80))}return true}
+ if(d.delcr){L$.crs=L$.crs.filter(x=>x.id!=d.delcr);await CS.del('cr_'+d.delcr);await saveCrs();back();return true}
  if(d.pause||d.resume){try{await gpost(d.pause||d.resume,{status:d.pause?'PAUSED':'ACTIVE'});toast(d.pause?'⏸ На паузі':'▶ Показ відновлено');await liveLoad()}catch(e){toast('Помилка: '+e.message.slice(0,80))}return true}
  return false}
 const t0=t=>toast(t);
 
+
+/* ───── Аудиторія ───── */
+function buildTargeting(a){a=a||L$.aud;const geo=a.cities&&a.cities.length?{cities:a.cities.map(c=>({key:c.key,radius:a.radius||25,distance_unit:'kilometer'}))}:{countries:LC.countries||['UA']};
+ if(a.adv)return {geo_locations:geo,age_min:18,age_max:65,targeting_automation:{advantage_audience:1}};
+ return {geo_locations:geo,age_min:a.ageMin,age_max:a.ageMax,...(a.gender?{genders:[a.gender]}:{}),targeting_automation:{advantage_audience:0}}}
+const audSummary=a=>(a.cities&&a.cities.length?a.cities.map(c=>c.name).join(', ')+` (+${a.radius} км)`:'Вся Україна')+' · '+(a.adv?'автоматично (Meta сама шукає)':`${a.ageMin}–${a.ageMax}${a.gender===1?' · чоловіки':a.gender===2?' · жінки':''}`);
+let audDraft=null,citySearch=[];
+const audView=()=>()=>{const a=audDraft;return `<h2 style="margin-top:6px">Кому показувати</h2>
+ <div class="card"><div class="sec" style="margin:0"><div class="l">Де</div>
+  <div class="chips" style="margin:6px 0;padding:0;flex-wrap:wrap"><button class="${!a.cities.length?'on':''}" data-aall="1">Вся Україна</button>${a.cities.map((c,k)=>`<button class="on" data-arm="${k}">${esc(c.name)} ✕</button>`).join('')}</div>
+  <input id="acity" placeholder="Додати місто: Київ, Львів…" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.3);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:11px;font:15px Manrope,sans-serif">
+  <div id="ares">${citySearch.map((c,k)=>`<div class="item" data-apick="${k}" style="padding:10px;margin:6px 0 0"><div class="tx"><b>${esc(c.name)}</b><small>${esc(c.region||'')}</small></div><span class="chev">＋</span></div>`).join('')}</div>
+  ${a.cities.length?`<div class="chips" style="margin:10px 0 0;padding:0">${[10,25,40,80].map(r=>`<button class="${a.radius==r?'on':''}" data-arad="${r}">+${r} км</button>`).join('')}</div>`:''}</div>
+ <div class="sec"><div class="l">Хто</div>
+  <div class="chips" style="margin:6px 0 0;padding:0;flex-wrap:wrap"><button class="${a.adv?'on':''}" data-aadv="1">Автоматично</button><button class="${!a.adv?'on':''}" data-aadv="0">Задати вручну</button></div>
+  <div class="h2s" style="margin:8px 0 0">${a.adv?'Meta сама знаходить людей, які пишуть у Direct. Для малих бюджетів зазвичай працює найкраще.':'Показуємо лише вказаному віку й статі.'}</div>
+  ${!a.adv?`<div style="display:flex;gap:10px;align-items:center;margin-top:10px"><span style="color:var(--mut)">Вік</span><button class="btn ghost" data-aage="min:-1" style="width:44px;margin:0">−</button><b>${a.ageMin}</b><button class="btn ghost" data-aage="min:1" style="width:44px;margin:0">+</button><span style="color:var(--mut)">до</span><button class="btn ghost" data-aage="max:-1" style="width:44px;margin:0">−</button><b>${a.ageMax}</b><button class="btn ghost" data-aage="max:1" style="width:44px;margin:0">+</button></div>
+  <div class="chips" style="margin:10px 0 0;padding:0"><button class="${!a.gender?'on':''}" data-agen="0">Усі</button><button class="${a.gender===1?'on':''}" data-agen="1">Чоловіки</button><button class="${a.gender===2?'on':''}" data-agen="2">Жінки</button></div>`:''}</div></div>
+ <button class="btn" data-asave="1">${L$.sets.length?'Застосувати в Meta':'Зберегти для першого запуску'}</button>
+ <h2>Ретаргет</h2><div class="card"><b>Показувати тим, хто вже знає @hladysh.ivan</b><div class="h2s" style="margin:6px 0 0">Люди, які за останній рік заходили в профіль, писали чи взаємодіяли з постами. Зазвичай пишуть охочіше й дешевше. Створиться окрема група з бюджетом 50 ₴/день, туди підуть усі запущені креативи.</div>
+  ${L$.rt?`<div class="pill p-good" style="margin-top:10px">Група ретаргету працює</div>`:`<button class="btn ghost" data-rt="1">Створити ретаргет</button>`}</div>
+ <p class="h2s">Мовою таргетолога: геотаргетинг, вік/стать, Advantage+ audience, ретаргет на Instagram engagement audience.</p>`};
+const audCard=()=>tok()?`<div class="card" data-aud="1" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div class="lab">Кому показуємо</div><b style="font-size:15px">${esc(audSummary(L$.aud))}</b>${L$.rt?'<div class="h2s" style="margin:2px 0 0">+ ретаргет на твій Instagram</div>':''}</div><span class="chev">›</span></div>`:'';
+let cityT=null;
+document.addEventListener('input',e=>{if(e.target.id!=='acity')return;clearTimeout(cityT);const v=e.target.value.trim();if(v.length<2)return;
+ cityT=setTimeout(async()=>{try{const r=await gget(`search?type=adgeolocation&location_types=${encodeURIComponent('["city"]')}&country_code=UA&q=${encodeURIComponent(v)}&limit=6`);
+  citySearch=(r.data||[]).map(c=>({key:c.key,name:c.name,region:c.region}));$('#ares').innerHTML=citySearch.map((c,k)=>`<div class="item" data-apick="${k}" style="padding:10px;margin:6px 0 0"><div class="tx"><b>${esc(c.name)}</b><small>${esc(c.region||'')}</small></div><span class="chev">＋</span></div>`).join('')||'<div class="h2s">Нічого не знайшов</div>'}catch(err){toast(err.message.slice(0,80))}},400)});
+const reAud=()=>{stack[stack.length-1]=audView();render();return true};
+async function audClick(d){
+ if(d.aud){audDraft=JSON.parse(JSON.stringify(L$.aud));citySearch=[];go(audView());return true}
+ if(d.aall){audDraft.cities=[];return reAud()}
+ if(d.arm!==undefined){audDraft.cities.splice(+d.arm,1);return reAud()}
+ if(d.apick!==undefined){const c=citySearch[+d.apick];if(!audDraft.cities.some(x=>x.key===c.key))audDraft.cities.push(c);citySearch=[];return reAud()}
+ if(d.arad){audDraft.radius=+d.arad;return reAud()}
+ if(d.aadv!==undefined){audDraft.adv=d.aadv==='1';return reAud()}
+ if(d.aage){const [k,v]=d.aage.split(':');if(k==='min')audDraft.ageMin=Math.min(audDraft.ageMax,Math.max(18,audDraft.ageMin+(+v)));else audDraft.ageMax=Math.max(audDraft.ageMin,Math.min(65,audDraft.ageMax+(+v)));return reAud()}
+ if(d.agen!==undefined){audDraft.gender=+d.agen;return reAud()}
+ if(d.asave){const run=async()=>{try{L$.aud=audDraft;await CS.set('aud',JSON.stringify(L$.aud));const sets=mainSets();
+   if(sets.length){for(const x of sets)await gpost(x.id,{targeting:JSON.stringify(buildTargeting())});toast('✓ Аудиторію змінено в Meta')}else toast('✓ Збережено');await liveLoad();back()}catch(e){toast('Помилка: '+e.message.slice(0,90))}};
+  if(L$.sets.length&&tg?.initData&&tg.showConfirm)tg.showConfirm('Змінити аудиторію? Facebook кілька днів заново навчатиметься.',ok=>{if(ok)run()});else run();return true}
+ if(d.rt){const run=async()=>{try{toast('Створюю аудиторію…');
+   let aud=await CS.get('rt_audience');
+   if(!aud){aud=(await gpost(`act_${LC.acc}/customaudiences`,{name:'Взаємодіяли з @hladysh.ivan · 365 днів',subtype:'ENGAGEMENT',prefill:'1',
+     rule:JSON.stringify({inclusions:{operator:'or',rules:[{event_sources:[{id:LC.ig,type:'ig_business'}],retention_seconds:31536000,filter:{operator:'and',filters:[{field:'event',operator:'eq',value:'ig_business_profile_all'}]}}]}})})).id;await CS.set('rt_audience',aud)}
+   await ensureAdset();const cid=await CS.get('campaign_id');
+   const rt=(await gpost(`act_${LC.acc}/adsets`,{name:'Ретаргет · Instagram',campaign_id:cid,status:'ACTIVE',daily_budget:'5000',billing_event:'IMPRESSIONS',bid_strategy:'LOWEST_COST_WITHOUT_CAP',
+     destination_type:'INSTAGRAM_DIRECT',optimization_goal:'CONVERSATIONS',promoted_object:JSON.stringify({page_id:LC.page}),
+     targeting:JSON.stringify({geo_locations:{countries:LC.countries||['UA']},age_min:18,age_max:65,custom_audiences:[{id:aud}],targeting_automation:{advantage_audience:0}})})).id;
+   await CS.set('rt_adset',rt);L$.rt=rt;
+   for(const c of L$.crs)for(const crid of c.crids||[])try{await gpost(`act_${LC.acc}/ads`,{name:`#${c.id} ретаргет`,adset_id:rt,creative:JSON.stringify({creative_id:crid}),status:'ACTIVE'})}catch(e){}
+   toast('✓ Ретаргет запущено');await liveLoad();reAud()}catch(e){toast('Помилка: '+e.message.slice(0,100))}};
+  if(tg?.initData&&tg.showConfirm)tg.showConfirm('Створити групу ретаргету з бюджетом 50 ₴/день?',ok=>{if(ok)run()});else run();return true}
+ return false}
+
+/* ───── Клієнти (позначки з переписок) ───── */
+const mkKey=d=>'mk_'+d.toISOString().slice(0,7).replace('-','');
+async function loadMarks(){const now=new Date(),out=[];for(let k=0;k<3;k++){const d=new Date(now.getFullYear(),now.getMonth()-k,1);try{out.push(...JSON.parse(await CS.get(mkKey(d))||'[]'))}catch(e){}}L$.marks=out}
+async function addMark(m){const key=mkKey(new Date());let arr=[];try{arr=JSON.parse(await CS.get(key)||'[]')}catch(e){}arr.push(m);await CS.set(key,JSON.stringify(arr.slice(-60)));L$.marks.push(m)}
+const totSpend=()=>Object.values(L$.tot).reduce((a,x)=>a+x,0);
+const clientsCard=()=>{if(!tok())return'';const calls=L$.marks.filter(m=>m.t==='call').length,paid=L$.marks.filter(m=>m.t==='paid'),rev=paid.reduce((a,m)=>a+(m.s||0),0),sp=totSpend();
+ return `<h2>Клієнти з реклами</h2><p class="h2s">Відмічай, хто з переписок дійшов до дзвінка й оплати. Так видно справжню ціну клієнта, а не переписки ${q('cl')}</p>
+ <div class="mg"><div class="m"><span>Дзвінки</span><b>${calls}</b><span class="pro" style="margin:4px 0 0;display:inline-block">Qualified</span></div><div class="m"><span>Ціна дзвінка</span><b>${calls?usd(sp/calls):'—'}</b><span class="pro" style="margin:4px 0 0;display:inline-block">CPQL</span></div>
+ <div class="m"><span>Оплати</span><b>${paid.length}${rev?' · '+usd(rev):''}</b><span class="pro" style="margin:4px 0 0;display:inline-block">Sales</span></div><div class="m"><span>Ціна клієнта</span><b>${paid.length?usd(sp/paid.length):'—'}</b><span class="pro" style="margin:4px 0 0;display:inline-block">CAC</span></div></div>
+ ${rev&&sp?`<div class="card" style="text-align:center">На кожну 1 ₴ реклами повернулось <b style="color:var(--${rev>=sp?'good':'bad'})">${(rev/sp).toFixed(1)} ₴</b> <span class="pro">ROAS</span></div>`:''}
+ <button class="btn ghost" data-mark="1">＋ Відмітити клієнта</button>`};
+let mkDraft=null;
+const markView=()=>()=>{const m=mkDraft;const ads=L$.ads.filter(a=>L$.tot[a.id]||a.effective_status==='ACTIVE');
+ return `<h2 style="margin-top:6px">Новий клієнт</h2><div class="card"><div class="sec" style="margin:0"><div class="l">Що сталося</div>
+ <div class="chips" style="margin:6px 0 0;padding:0"><button class="${m.t==='call'?'on':''}" data-mt="call">📞 Відбувся дзвінок</button><button class="${m.t==='paid'?'on':''}" data-mt="paid">💳 Оплатив</button></div></div>
+ ${m.t==='paid'?`<div class="sec"><div class="l">Сума, ₴ (необов'язково)</div><input id="msum" inputmode="numeric" value="${m.s||''}" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,.3);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:11px;font:15px Manrope,sans-serif"></div>`:''}
+ <div class="sec"><div class="l">З якої реклами написав</div>
+ <div class="chips" style="margin:6px 0 0;padding:0;flex-wrap:wrap"><button class="${!m.ad?'on':''}" data-mad="">Не знаю</button>${ads.map(a=>`<button class="${m.ad===a.id?'on':''}" data-mad="${a.id}">${esc(a.name.slice(0,28))}</button>`).join('')}</div></div></div>
+ <button class="btn" data-msave="1">Зберегти</button>`};
+const reMark=()=>{if(mkDraft.t==='paid'&&$('#msum'))mkDraft.s=+$('#msum').value||0;stack[stack.length-1]=markView();render();return true};
+async function markClick(d){
+ if(d.mark){mkDraft={t:'call',ad:'',s:0};go(markView());return true}
+ if(d.mt){mkDraft.t=d.mt;return reMark()}
+ if(d.mad!==undefined){mkDraft.ad=d.mad;return reMark()}
+ if(d.msave){if($('#msum'))mkDraft.s=+$('#msum').value||0;await addMark({t:mkDraft.t,ad:mkDraft.ad,s:mkDraft.s||0,d:Date.now()});try{tg.HapticFeedback.notificationOccurred('success')}catch(e){}toast('✓ Записано');back();return true}
+ return false}
+
+/* ───── Рішення ШІ (правила таргетолога над живими даними) ───── */
+const DAY=864e5;
+function recs(){if(!tok())return[];const T=K.target_cpl,out=[],today=new Date().toISOString().slice(0,10);let dis={};try{dis=JSON.parse(localStorage.getItem('dis_'+today)||'{}')}catch(e){}
+ const active=L$.ads.filter(a=>a.effective_status==='ACTIVE');const perSet={};for(const a of active)perSet[a.adset_id]=(perSet[a.adset_id]||0)+1;
+ for(const a of active){const i=L$.ins[a.id]||{spend:0,conv:0,freq:0};const age=(Date.now()-new Date(a.created_time))/36e5;if(age<72)continue;
+  const cpl=i.conv?i.spend/i.conv:null,can=perSet[a.adset_id]>1;
+  if(!i.conv&&i.spend>=2*T)out.push(can?{id:'p'+a.id,kind:'pause',ad:a.id,title:`Вимкнути «${a.name}»`,why:`${usd(i.spend)} за тиждень і жодної переписки. Норма — ${usd(T)} за переписку.`,btn:'Вимкнути'}:
+   {id:'r'+a.id,kind:'new',title:`Заміни «${a.name}»`,why:`${usd(i.spend)} і жодної переписки, але це єдине оголошення в групі: вимкнеш — реклама зупиниться. Додай новий креатив, потім вимкнемо цей.`,btn:'Додати креатив'});
+  else if(i.conv>=3&&cpl>1.5*T&&can)out.push({id:'p'+a.id,kind:'pause',ad:a.id,title:`Вимкнути «${a.name}»`,why:`Переписка коштує ${usd(cpl)} — у ${(cpl/T).toFixed(1)} раза дорожче норми. Гроші краще віддати кращим оголошенням.`,btn:'Вимкнути'});
+  if(i.freq>3.2)out.push({id:'f'+a.id,kind:'new',title:`Люди втомились від «${a.name}»`,why:`Одна людина бачила її вже ${i.freq.toFixed(1)} раза. Реакція падатиме — пора зняти новий креатив.`,btn:'Додати креатив'})}
+ for(const x of L$.sets.filter(x=>x.effective_status==='ACTIVE')){const si=L$.sins[x.id]||{spend:0,conv:0};const cpl=si.conv?si.spend/si.conv:null;const last=+localStorage.getItem('bch_'+x.id)||0;const b=dB(x);
+  if(b&&si.conv>=5&&cpl<=T&&Date.now()-last>3*DAY)out.push({id:'s'+x.id,kind:'scale',set:x.id,val:Math.round(b*1.2),title:`Додати бюджет «${x.name}»`,why:`Переписка коштує ${usd(cpl)} при нормі ${usd(T)}, ${si.conv} переписок за тиждень. Можна обережно додати 20%: ${usd(b)} → ${usd(Math.round(b*1.2))} на день.`,btn:'Додати 20%'})}
+ return out.filter(r=>!dis[r.id])}
+const recCard=()=>{const r=recs();if(!r.length)return tok()&&L$.ads.length?`<h2>Рішення</h2><div class="card">Все в нормі, рішень не треба. ШІ перевіряє щоразу, як відкриваєш застосунок.</div>`:'';
+ return `<h2>Рішення</h2><p class="h2s">ШІ перевірив рекламу за правилами таргетолога. Нові оголошення перші 3 дні не чіпає.</p>`+r.map((x,k)=>`<div class="card"><div style="display:flex;gap:12px"><div class="ico ${x.kind==='pause'?'i-bad':x.kind==='scale'?'i-good':'i-mid'}" style="font-size:${x.kind==='pause'?13:18}px">${x.kind==='pause'?'❚❚':x.kind==='scale'?'↗':'↻'}</div><div style="flex:1"><b>${esc(x.title)}</b><div style="color:var(--mut);font-size:13.5px;margin-top:4px">${x.why}</div></div></div>
+ <div class="row2"><button class="btn ${x.kind==='pause'?'bad':x.kind==='scale'?'good':''}" data-rec="${x.id}">${x.btn}</button><button class="btn ghost" data-recno="${x.id}">Не зараз</button></div></div>`).join('')};
+async function recClick(d){
+ if(d.recno){const today=new Date().toISOString().slice(0,10);let dis={};try{dis=JSON.parse(localStorage.getItem('dis_'+today)||'{}')}catch(e){}dis[d.recno]=1;localStorage.setItem('dis_'+today,JSON.stringify(dis));render();return true}
+ if(d.rec){const r=recs().find(x=>x.id===d.rec);if(!r)return true;
+  if(r.kind==='new'){draft={};go(addView());return true}
+  const run=async()=>{try{if(r.kind==='pause'){await gpost(r.ad,{status:'PAUSED'});toast('⏸ Вимкнено')}else{await gpost(r.set,{daily_budget:String(r.val*100)});localStorage.setItem('bch_'+r.set,Date.now());toast('✓ Бюджет збільшено')}
+   try{tg.HapticFeedback.notificationOccurred('success')}catch(e){}await liveLoad()}catch(e){toast('Помилка: '+e.message.slice(0,80))}};
+  if(tg?.initData&&tg.showConfirm)tg.showConfirm(r.title+'?',ok=>{if(ok)run()});else run();return true}
+ return false}
 
 /* ───── Бюджети ───── */
 const MINB=46;
@@ -339,7 +464,7 @@ const icn={pause_ad:['i-bad','❚❚'],scale_adset:['i-good','↗'],alert_fatigu
 const decItem=a=>`<div class="item" data-act="${a.id}" style="${done[a.id]?'opacity:.5':''}"><div class="ico ${icn[a.kind][0]}" style="font-size:${a.kind==='pause_ad'?'13px':'19px'}">${icn[a.kind][1]}</div><div class="tx"><b>${esc(a.title)}: «${esc(a.ad_name)}»</b><small>${done[a.id]?(done[a.id]==='ok'?'✓ Підтверджено':'✕ Залишили як є'):esc(a.what)}</small><span class="pill p-${a.kind==='scale_adset'?'good':a.kind==='pause_ad'?'bad':'mid'}" style="margin-top:8px;padding:3px 10px;font-size:12.5px">${esc(a.impact)}</span></div><span class="chev">›</span></div>`;
 const cnt=k=>O.ads.filter(a=>a.v===k).length;
 V.home=()=>{const vd=O.verdict,dec=O.actions.filter(a=>a.verb),hints=O.actions.filter(a=>!a.verb);
- if(!D.ads.length)return top()+setupCard()+(tok()&&L$.ads.length?spendCard()+budgetCard():`<div class="card hero"><div class="lab">Твоя реклама</div><div style="font-size:22px;font-weight:800;margin:6px 0">${L$.loading?'Перевіряю кабінет…':'Ще не запущена'}</div><div class="h2s" style="margin:0">Як тільки запустиш перший креатив, тут з'явиться ціна переписки, витрати й рішення.</div></div>`)+(tok()&&!L$.ads.length?budgetCard():'')+crSection()+`<h2>Поки готуєш креативи</h2><div class="card cnt" data-tab2="ideas" style="grid-template-columns:1fr 1fr"><div><b>${D.concepts.length}</b><span>сценаріїв для зйомки</span></div><div><b>${D.winners.length}</b><span>реклам конкурентів</span></div></div>`;
+ if(!D.ads.length)return top()+setupCard()+(tok()&&L$.ads.length?spendCard()+recCard()+clientsCard()+budgetCard()+audCard():`<div class="card hero"><div class="lab">Твоя реклама</div><div style="font-size:22px;font-weight:800;margin:6px 0">${L$.loading?'Перевіряю кабінет…':'Ще не запущена'}</div><div class="h2s" style="margin:0">Як тільки запустиш перший креатив, тут з'явиться ціна переписки, витрати й рішення.</div></div>`)+(tok()&&!L$.ads.length?budgetCard()+audCard():'')+crSection()+`<h2>Поки готуєш креативи</h2><div class="card cnt" data-tab2="ideas" style="grid-template-columns:1fr 1fr"><div><b>${D.concepts.length}</b><span>сценаріїв для зйомки</span></div><div><b>${D.winners.length}</b><span>реклам конкурентів</span></div></div>`;
  return top()+setupCard()+`
 <div class="card hero"><div class="lab">${S.cql_7d!=null?L('cpc'):L('cpl')}</div>
  <div class="big">${cu(S.cql_7d??S.cpl_7d,D.cur)}</div><span class="pill p-${vd[0]}">${vd[1]}</span> <span style="color:var(--mut);font-size:13px;margin-left:4px">норма ${usd(S.cql_7d!=null?K.target_cql:K.target_cpl)} ${q('norm')}</span>
@@ -365,7 +490,7 @@ const decView=id=>()=>{const a=O.actions.find(x=>x.id==id),ad=O.ads.find(x=>x.ad
 
 /* Реклама */
 const vic={bad:['i-bad','↘'],good:['i-good','↗'],mid:['i-mid','→'],learn:['i-learn','⏳']};
-V.ads=()=>{if(LC.acc&&!D.ads.length)return top()+budgetCard()+crSection()+liveAds();const order={good:0,mid:1,learn:2,bad:3};const rows=[...O.ads].sort((a,b)=>order[a.v]-order[b.v]||(a.cql_7d??999)-(b.cql_7d??999));
+V.ads=()=>{if(LC.acc&&!D.ads.length)return top()+budgetCard()+audCard()+crSection()+liveAds();const order={good:0,mid:1,learn:2,bad:3};const rows=[...O.ads].sort((a,b)=>order[a.v]-order[b.v]||(a.cql_7d??999)-(b.cql_7d??999));
  return top()+crSection()+`<h2 style="margin-top:${D.launch?24:6}px">Твоя реклама</h2><p class="h2s">Зелена приносить клієнтів дешево, червона зливає гроші. Справа ціна одного цільового клієнта ${q('cpc')}</p>
  ${rows.length?'':'<div class="card">Активних оголошень ще нема.</div>'}${rows.map(s=>`<div class="item" data-adv="${s.ad_id}"><div class="ico ${vic[s.v][0]}">${vic[s.v][1]}</div><div class="tx"><b>${esc(s.name)}</b><small style="color:var(--${s.v})">${esc(s.label)}</small></div><div class="val">${s.cql_7d?usd(s.cql_7d)+'<small>за клієнта</small>':s.v==='learn'?'<small>рано<br>оцінювати</small>':'<span style="color:var(--bad)">0</span><small>цільових</small>'}</div></div>`).join('')}`};
 const adView=id=>()=>{const s=O.ads.find(x=>x.ad_id===id);const acts=O.actions.filter(a=>a.ad_id===id);
@@ -432,7 +557,7 @@ function charts(){document.querySelectorAll('svg[data-ad]').forEach(s=>{const se
  s.innerHTML=g})}
 
 /* події */
-document.addEventListener('click',async e=>{const t=e.target.closest('[data-bud],[data-bstep],[data-bset],[data-bsave],[data-spause],[data-sresume],[data-key],[data-savekey],[data-delkey],[data-add],[data-useidea],[data-save],[data-launch],[data-delcr],[data-pause],[data-resume],[data-adlive],[data-cr],[data-go],[data-tg],[data-open],[data-q],[data-how],[data-back],[data-replay],[data-tab2],[data-act],[data-adv],[data-comp],[data-idea],[data-iseg],[data-bt],[data-dec],[data-url],[data-copy]');if(!t)return;const d=t.dataset;
+document.addEventListener('click',async e=>{const t=e.target.closest('[data-rec],[data-recno],[data-aud],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-asave],[data-rt],[data-mark],[data-mt],[data-mad],[data-msave],[data-pausecr],[data-resumecr],[data-bud],[data-bstep],[data-bset],[data-bsave],[data-spause],[data-sresume],[data-key],[data-savekey],[data-delkey],[data-add],[data-useidea],[data-save],[data-launch],[data-delcr],[data-pause],[data-resume],[data-adlive],[data-cr],[data-go],[data-tg],[data-open],[data-q],[data-how],[data-back],[data-replay],[data-tab2],[data-act],[data-adv],[data-comp],[data-idea],[data-iseg],[data-bt],[data-dec],[data-url],[data-copy]');if(!t)return;const d=t.dataset;
  if(await liveClick(d))return;
  if(d.adlive){go(adLiveView(d.adlive));return}
  if(d.cr){go(crView(+d.cr));return}
