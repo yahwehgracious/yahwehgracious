@@ -260,11 +260,11 @@ async function loadSheet(){const u=L$.links.csv;if(!u){L$.sheet=[];return}
 /* ───── ШІ (Anthropic або Gemini, ключ у CloudStorage) ───── */
 const aiProv=()=>L$.ai.startsWith('sk-ant')?'anthropic':L$.ai.startsWith('AIza')?'gemini':null;
 async function toB64(blob){return await new Promise((r,j)=>{const fr=new FileReader();fr.onload=()=>r(String(fr.result).split(',')[1]);fr.onerror=j;fr.readAsDataURL(blob)})}
-async function ai(system,user,img){const p=aiProv();if(!p)throw new Error('Додай ключ ШІ в налаштуваннях');
+async function ai(system,user,img,heavy){const p=aiProv();if(!p)throw new Error('Додай ключ ШІ в налаштуваннях');
  if(img?.url&&p==='gemini'){try{const b=await (await fetch(img.url)).blob();img={b64:await toB64(b),mime:b.type||'image/jpeg'}}catch(e){img=null}}
  if(p==='anthropic'){const content=[];if(img)content.push({type:'image',source:img.url?{type:'url',url:img.url}:{type:'base64',media_type:img.mime,data:img.b64}});content.push({type:'text',text:user});
   const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'x-api-key':L$.ai,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true','content-type':'application/json'},
-   body:JSON.stringify({model:LC.ai_model||'claude-sonnet-5-5',max_tokens:4000,system,messages:[{role:'user',content}]})});const j=await r.json();if(j.error)throw new Error(j.error.message);return j.content.map(x=>x.text||'').join('')}
+   body:JSON.stringify({model:heavy?(LC.ai_model_heavy||'claude-opus-5-5'):(LC.ai_model||'claude-sonnet-5-5'),max_tokens:4000,system,messages:[{role:'user',content}]})});const j=await r.json();if(j.error)throw new Error(j.error.message);return j.content.map(x=>x.text||'').join('')}
  const parts=[];if(img)parts.push({inline_data:{mime_type:img.mime,data:img.b64}});parts.push({text:user});
  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${LC.gemini_model||'gemini-flash-latest'}:generateContent?key=${encodeURIComponent(L$.ai)}`,{method:'POST',headers:{'content-type':'application/json'},
   body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts}],generationConfig:{responseMimeType:'application/json'}})});
@@ -786,7 +786,7 @@ async function aiReview(c){let img=null;if(c.kind==='image'&&c.thumb)img={url:c.
  const j=pj(t);c.review={score:+j.score||0,hook:String(j.hook||'').slice(0,300),offer:String(j.offer||'').slice(0,300),fix:(j.fix||[]).map(x=>String(x).slice(0,200)),risk:String(j.risk||'').slice(0,250)}}
 async function aiIdeas(){const t=await ai(SYSf(),`${aiCtx()}\n\nЗапропонуй 3 нові ідеї реклами, яких ще нема серед цих: ${allIdeas().map(c=>c.concept).join('; ')}.
 Кожна для іншої аудиторії з ніші. Бери механіку в конкурентів, але слова й пропозиція мої. Враховуй, що працює в моїй рекламі.
-Формат: {"ideas":[{"concept":"назва до 70 символів","persona":"для кого","format":"формат","offer":"що пропонуємо","hypothesis":"чому має спрацювати","hooks":["3 варіанти перших 3 секунд"],"primary_text":"текст оголошення до 500 символів","headline":"до 40 символів","script":[{"t":"0–3с","frame":"що в кадрі","on_screen":"текст на екрані"}]}]}`);
+Формат: {"ideas":[{"concept":"назва до 70 символів","persona":"для кого","format":"формат","offer":"що пропонуємо","hypothesis":"чому має спрацювати","hooks":["3 варіанти перших 3 секунд"],"primary_text":"текст оголошення до 500 символів","headline":"до 40 символів","script":[{"t":"0–3с","frame":"що в кадрі","on_screen":"текст на екрані"}]}]}`,null,true);
  const j=pj(t);const idx=await CSj('idea_index',[]);let n=Math.max(0,...idx)+1;
  for(const x of (j.ideas||[]).slice(0,3)){const c={concept:x.concept,persona:x.persona,format:x.format,offer:x.offer,hypothesis:x.hypothesis,hooks:(x.hooks||[]).slice(0,3),primary_text:String(x.primary_text||'').slice(0,700),headline:x.headline,script:(x.script||[]).slice(0,5)};
   let s=JSON.stringify(c);while(s.length>3900&&c.script.length){c.script.pop();s=JSON.stringify(c)}await CS.set('idea_'+n,s);idx.unshift(n);n++}
@@ -869,11 +869,11 @@ async function act(d){
  if(d.nsave){await saveNorms();okHap();toast('✓ Норми збережено');back();return}
  if(d.nai){if(!L$.ai){go(setView0());return}const el=$('#naiout');el.innerHTML='<div class="card"><span class="spin"></span> ШІ рахує…</div>';const c=calcN(nd);
   try{const t=await ai(SYSf(),`${aiCtx()}\n\nМої вхідні: середній чек ${nd.check} ₴, на рекламу ${nd.share}% чека, зі 100 переписок купують ${nd.chat}, зі 100 заявок ${nd.lead}, зі 100 переходів пишуть ${nd.click}. Вийшло: клієнт до ${Math.round(c.cac)} ₴, переписка до ${c.conv} ₴, заявка до ${c.lead} ₴, перехід до ${c.link} ₴.
-Оціни як таргетолог: чи реалістичні ці припущення для моєї ніші в Україні, яка зазвичай ціна переписки в схожих нішах, що б ти змінив. Коротко, 4–6 речень. Формат: {"answer":"текст"}`);el.innerHTML=`<div class="card" style="white-space:pre-wrap">${esc(pj(t).answer)}</div>`}catch(e){el.innerHTML='';err(e)}return}
+Оціни як таргетолог: чи реалістичні ці припущення для моєї ніші в Україні, яка зазвичай ціна переписки в схожих нішах, що б ти змінив. Коротко, 4–6 речень. Формат: {"answer":"текст"}`,null,true);el.innerHTML=`<div class="card" style="white-space:pre-wrap">${esc(pj(t).answer)}</div>`}catch(e){el.innerHTML='';err(e)}return}
  if(d.askv){go(askView());return}
  if(d.askq){askQ=d.askq;re(askView());return}
  if(d.ask){askQ=$('#askt').value.trim();if(!askQ)return;if(!L$.ai){go(setView0());return}askBusy=true;re(askView());
-  try{const t=await ai(SYSf(),`${aiCtx()}\n\n${acctCtx()}\n\nПитання: ${askQ}\nВідповідай конкретно під мої цифри, простою мовою, з термінами таргетолога в дужках. До 8 речень або короткий список. Формат: {"answer":"текст"}`);askA=pj(t).answer}catch(e){err(e)}askBusy=false;re(askView());return}
+  try{const t=await ai(SYSf(),`${aiCtx()}\n\n${acctCtx()}\n\nПитання: ${askQ}\nВідповідай конкретно під мої цифри, простою мовою, з термінами таргетолога в дужках. До 8 речень або короткий список. Формат: {"answer":"текст"}`,null,true);askA=pj(t).answer}catch(e){err(e)}askBusy=false;re(askView());return}
  // налаштування
  if(d.set){go(setView0());return}
  if(d.key){go(keyView());return}

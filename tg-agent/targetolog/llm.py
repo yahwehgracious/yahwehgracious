@@ -98,11 +98,11 @@ class LLM:
         raise ValueError(f"provider {self.provider}")
 
 
-def make(name):
+def make(name, model=None):
     if not name or name == "mock":
         return None
     keyvar = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY"}[name]
     if not os.environ.get(keyvar):
         log(f"⚠ {keyvar} не задано — {name} вимкнено, працює mock")
         return None
-    return LLM(name)
+    return LLM(name, model)

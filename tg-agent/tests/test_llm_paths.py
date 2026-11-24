@@ -46,7 +46,7 @@ class T(unittest.TestCase):
         cfg["source"] = {"kind": "file", "file": cfg["source"]["file"]}
         (tmp / "client.json").write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
         try:
-            with mock.patch.object(llm, "make", lambda name: FakeLLM(name) if name else None), \
+            with mock.patch.object(llm, "make", lambda name, model=None: FakeLLM(name) if name else None), \
                  mock.patch.object(analyze, "_download", lambda url, limit_mb=20: b"\x00" * 100):
                 r = pipeline.run("_t_llm", now=datetime(2026, 11, 24, 7, tzinfo=timezone.utc), force_brief=True)
             self.assertEqual(len(r["concepts"]), 6)  # 3 пачки по 2

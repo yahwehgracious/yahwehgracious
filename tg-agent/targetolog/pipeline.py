@@ -3,6 +3,7 @@
 Усе про власну рекламу застосунок бере з Meta наживо, тому тут лише те, що потребує сервера:
 скрапінг бібліотеки реклами й LLM-розбір із кешем у SQLite."""
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -37,20 +38,22 @@ def load_client(slug):
 _ALIVE = {}
 
 
-def _pick(pref):
+def _pick(pref, heavy=False):
     """Бажаний провайдер; якщо ключа нема або він не відповідає (нема балансу, ліміт) — наступний. None = без LLM."""
     for name in dict.fromkeys([pref, "anthropic", "gemini"]):
-        m = llm.make(name) if name else None
+        # важке (ідеї/бриф) — Opus, масове (розбір конкурентів) — Sonnet
+        model = os.environ.get("ANTHROPIC_MODEL_HEAVY", "claude-opus-5-5") if heavy and name == "anthropic" else None
+        m = llm.make(name, model) if name else None
         if not m:
             continue
-        if name not in _ALIVE:
+        if m.model not in _ALIVE:
             try:
                 m("Відповідай одним словом.", "ок?", max_tokens=5)
-                _ALIVE[name] = None
+                _ALIVE[m.model if m else name] = None
             except Exception as e:  # noqa: BLE001
-                _ALIVE[name] = str(e)[:160]
-                log(f"⚠ {name} не відповідає: {_ALIVE[name]}")
-        if _ALIVE[name] is None:
+                _ALIVE[m.model if m else name] = str(e)[:160]
+                log(f"⚠ {name} не відповідає: {_ALIVE[m.model if m else name]}")
+        if _ALIVE[m.model if m else name] is None:
             return m
     return None
 
@@ -84,7 +87,7 @@ def run(slug, now=None, force_brief=False, skip_collect=False, out=None, notify=
     concepts, fresh, brief_err = [], False, None
     last = db.q("SELECT created FROM briefs ORDER BY id DESC LIMIT 1")
     due = force_brief or not last or (now - datetime.fromisoformat(last[0]["created"])).days >= cfg["brief"]["every_days"]
-    brief_llm = _pick(cfg["brief"]["provider"]) if due else None
+    brief_llm = _pick(cfg["brief"]["provider"], heavy=True) if due else None
     if brief_llm:  # без LLM шаблонний бриф гірший за останній справжній — лишаємо старий
         try:
             concepts = br.novelty_check(br.make_brief(brief_llm, winners, analyses, pats, cfg, cfg["brief"]["concepts"]), winners)
