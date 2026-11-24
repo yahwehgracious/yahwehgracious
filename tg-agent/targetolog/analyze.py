@@ -107,6 +107,9 @@ def analyze_mock(c, cfg):
     }
 
 
+LAST_ERROR = [None]
+
+
 def analyze(db, winners, cfg, llm, video_llm):
     model = llm.model if llm else "mock"
     out, todo = {}, []
@@ -141,6 +144,7 @@ def analyze(db, winners, cfg, llm, video_llm):
                 results = analyze_batch(llm, batch, cfg)
             except Exception as e:  # noqa: BLE001
                 log(f"   batch впав ({e}) — mock для {len(batch)}")
+                LAST_ERROR[0] = str(e)[:200]
                 results = [None] * len(batch)
         else:
             results = [None] * len(batch)

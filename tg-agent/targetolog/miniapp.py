@@ -651,12 +651,12 @@ ${iseg==='ideas'?`<p class="h2s">Готові сценарії на основі
  ${I.map((c,i)=>`<div class="item" data-idea="${i}"><div class="ico i-ai">${c.ai?'✨':i+1-L$.ideas.length}</div><div class="tx"><b>${esc(c.concept)}</b><small>${esc((c.persona||'').split('(')[0])} · ${esc((c.format||'').split(',')[0])}</small></div><span class="chev">›</span></div>`).join('')||'<div class="card">Ідеї з\'являться після оновлення.</div>'}`
 :`<p class="h2s">Рекламу, яка не окупається, довго не тримають. Тут оголошення конкурентів, що крутяться 2+ тижні ${q('days')}, і розбір, чому вони працюють.</p>
 ${D.winners.map((w,i)=>`<div class="item" data-comp="${i}" style="display:block"><div style="display:flex;justify-content:space-between;gap:10px"><b>${esc(w.page_name)}</b><span style="font-weight:800;white-space:nowrap">${w.days} днів</span></div>
- <div style="color:var(--mut);font-size:13px;margin-top:3px">${esc(String(w.a?.hook?.text||w.title||'').slice(0,120))}</div><div class="dbar"><i style="width:${Math.max(6,w.days/maxd*100)}%"></i></div></div>`).join('')}`}`};
-const compView=i=>()=>{const w=D.winners[i],a=w.a||{},h=a.hook||{},o=a.offer||{};
+ <div style="color:var(--mut);font-size:13px;margin-top:3px">${esc(String((w.a?._model!=='mock'&&w.a?.hook?.text)||w.text||w.title||'').slice(0,120))}</div><div class="dbar"><i style="width:${Math.max(6,w.days/maxd*100)}%"></i></div></div>`).join('')}`}`};
+const compView=i=>()=>{const w=D.winners[i],a=w.a?._model==='mock'?{}:(w.a||{}),h=a.hook||{},o=a.offer||{};
  return `<div class="card hero"><div class="lab">Конкурент</div><div style="font-size:21px;font-weight:800;margin:3px 0 10px">${esc(w.page_name)}</div>
  <span class="chip">крутиться ${w.days} днів</span>${w.variants>1?`<span class="chip">${w.variants} копій</span>`:''}${w.reuse?'<span class="chip">запускали повторно</span>':''}</div>
  <div class="card"><div class="sec" style="margin:0"><div class="l">Текст реклами</div>${esc(w.text||w.title)}</div>
- <div class="sec"><div class="l">Чим чіпляє</div>${esc(h.text)}</div>${o.details?`<div class="sec"><div class="l">Що пропонує</div>${esc(o.details)}</div>`:''}
+ ${h.text?`<div class="sec"><div class="l">Чим чіпляє</div>${esc(h.text)}</div>`:'<div class="sec h2s" style="margin-left:0">Розбір ШІ з\'явиться після наступного оновлення.</div>'}${o.details?`<div class="sec"><div class="l">Що пропонує</div>${esc(o.details)}</div>`:''}
  ${a.persona?`<div class="sec"><div class="l">Для кого</div>${esc(a.persona)}</div>`:''}${a.why_works?`<div class="sec"><div class="l">Чому це працює</div>${esc(a.why_works)}</div>`:''}
  ${a.steal_this?`<div class="idea"><b>💡 Що взяти собі:</b> ${esc(a.steal_this)}</div>`:''}</div>
  ${w.snapshot_url?`<button class="btn ghost" data-open="${esc(w.snapshot_url)}">Відкрити в бібліотеці реклами</button>`:''}`};

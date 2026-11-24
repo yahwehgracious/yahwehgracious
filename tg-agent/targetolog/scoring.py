@@ -5,6 +5,7 @@
 impressions_rank — позиція на сторінці конкурента в Ad Library, відсортованій за показами (є тільки з власного
 скрапера). Якщо рангу нема — його вага перерозподіляється на решту компонент.
 """
+import re
 import math
 from collections import defaultdict
 from datetime import datetime
@@ -81,9 +82,17 @@ def score_creatives(db, now, cfg):
             "text_source": "body" if rep["text"] else ("title" if rep["title"] else "none"),
         })
     out.sort(key=lambda x: x["score"], reverse=True)
+    rx = cfg.get("relevance_rx")
+    if rx:  # пошук за словами тягне чуже («AI-лампа», «автоматизація лінії»): лишаємо тільки свою нішу
+        r = re.compile(rx, re.I)
+        out = [c for c in out if r.search(f"{c['text'] or ''} {c['title'] or ''}")]
     winners = [c for c in out if c["days"] >= min_days]
-    per_page, top = defaultdict(int), []
+    per_page, top, seen = defaultdict(int), [], set()
     for c in winners:
+        key = " ".join((c["text"] or c["title"] or "").lower().split())[:90]
+        if key and key in seen:  # той самий текст з іншою картинкою — одна ідея, не дублюємо
+            continue
+        seen.add(key)
         if per_page[c["page_id"]] < sc.get("max_per_page", 3):
             top.append(c)
             per_page[c["page_id"]] += 1

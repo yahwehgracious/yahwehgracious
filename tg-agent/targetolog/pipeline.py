@@ -65,7 +65,10 @@ def run(slug, now=None, force_brief=False, skip_collect=False, out=None, notify=
     analyses = an.analyze(db, winners, cfg, main_llm, video_llm)
     pats = an.patterns(winners, analyses, stats["fresh"])
 
-    concepts, fresh = [], False
+    ai_note = ("ШІ: " + main_llm.model) if main_llm else "⚠ Ключ ШІ не знайдено (секрет GEMINI_API_KEY), розбір шаблонний"
+    if main_llm and an.LAST_ERROR[0]:
+        ai_note = f"⚠ ШІ не відповів: {an.LAST_ERROR[0]}"
+    concepts, fresh, brief_err = [], False, None
     last = db.q("SELECT created FROM briefs ORDER BY id DESC LIMIT 1")
     due = force_brief or not last or (now - datetime.fromisoformat(last[0]["created"])).days >= cfg["brief"]["every_days"]
     brief_llm = _pick(cfg["brief"]["provider"]) if due else None
@@ -77,7 +80,8 @@ def run(slug, now=None, force_brief=False, skip_collect=False, out=None, notify=
             fresh = True
             log(f"04 Бриф: {len(concepts)} нових ідей")
         except Exception as e:  # noqa: BLE001 — нема балансу/ліміт: застосунок усе одно оновиться
-            log(f"⚠ Бриф не згенеровано: {str(e)[:200]}")
+            brief_err = str(e)[:200]
+            log(f"⚠ Бриф не згенеровано: {brief_err}")
     if not concepts:
         last = db.q("SELECT data FROM briefs ORDER BY id DESC LIMIT 1")
         concepts = json.loads(last[0]["data"]) if last else []
@@ -94,6 +98,8 @@ def run(slug, now=None, force_brief=False, skip_collect=False, out=None, notify=
         txt = (f"🔍 <b>Оновив конкурентів та ідеї</b>\n"
                + (f"Переглянув {n_ads} оголошень. " if n_ads else "")
                + f"Окупаються (крутяться 2+ тижні): {stats['winners']}.\n"
-               + (f"✨ {len(concepts)} нових сценаріїв для зйомки." if fresh else "Нових сценаріїв цього разу нема, лишив попередні."))
+               + (f"✨ {len(concepts)} нових сценаріїв для зйомки." if fresh else "Нових сценаріїв цього разу нема, лишив попередні."
+                  + (f" Причина: {brief_err}" if brief_err else ""))
+               + f"\n{telegram.esc(ai_note)}")
         telegram.send(t["chat_id"], txt, app_url=t.get("miniapp_url"), app_text="💡 Відкрити ідеї")
     return {"winners": winners, "stats": stats, "concepts": concepts, "analyses": analyses, "fresh": fresh}
