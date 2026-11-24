@@ -767,12 +767,14 @@ const hookOf=w=>(w.a?._model!=='mock'&&w.a?.hook?.text)||w.text||w.title||'';
 const CG=(()=>{const m=new Map();D.winners.forEach((w,i)=>{const k=String(w.page_name||'').toLowerCase().replace(/\s+-\s+.*$/,'').replace(/\s*(україна|ukraine|ua)\s*$/,'').trim();
  if(!m.has(k))m.set(k,{name:String(w.page_name).replace(/\s+(Україна|Ukraine)$/,''),ads:[]});m.get(k).ads.push({...w,i})});
  return [...m.values()].map(g=>({...g,ads:g.ads.sort((a,b)=>b.days-a.days),days:Math.max(...g.ads.map(x=>x.days))})).sort((a,b)=>b.days-a.days)})();
-const grpView=k=>()=>{const g=CG[k];return `<div class="card hero"><div class="lab">Конкурент</div><div class="ttl" style="margin:3px 0 6px">${esc(g.name)}</div>
+const igOf=pid=>Object.entries(LC.known||{}).find(([u,id])=>String(id)===String(pid))?.[0];
+const whoLine=pid=>{const u=igOf(pid);return `<div class="h2s" style="margin:0 0 6px">${u?`<span data-open="https://www.instagram.com/${esc(u)}/" style="text-decoration:underline;cursor:pointer">@${esc(u)}</span> · `:''}<span data-open="https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=UA&view_all_page_id=${esc(pid)}" style="text-decoration:underline;cursor:pointer">усі їхні оголошення ↗</span></div>`};
+const grpView=k=>()=>{const g=CG[k];return `<div class="card hero"><div class="lab">Конкурент</div><div class="ttl" style="margin:3px 0 6px">${esc(g.name)}</div>${g.ads[0]?.page_id?whoLine(g.ads[0].page_id):''}
  <div class="h2s" style="margin:0">${g.ads.length} ${pl(g.ads.length,['оголошення крутиться','оголошення крутяться','оголошень крутяться'])} 2+ тижні, найдовше ${g.days} днів</div></div>
  ${g.ads.map(w=>`<div class="item" data-comp="${w.i}" style="display:block"><div style="display:flex;justify-content:space-between;gap:10px"><span class="chip">${w.days} днів</span>${w.a?.steal_this&&w.a._model!=='mock'?'<span class="chip">💡 є що взяти</span>':''}</div>
   <div style="margin-top:8px;font-size:14px">${esc(String(hookOf(w)).slice(0,220))}</div></div>`).join('')}`};
 const compView=i=>()=>{const w=D.winners[i],a=w.a?._model==='mock'?{}:(w.a||{}),h=a.hook||{},o=a.offer||{};
- return `<div class="card hero"><div class="lab">Конкурент</div><div class="ttl" style="margin:3px 0 10px">${esc(w.page_name)}</div>
+ return `<div class="card hero"><div class="lab">Конкурент</div><div class="ttl" style="margin:3px 0 4px">${esc(w.page_name)}</div>${w.page_id?whoLine(w.page_id):''}
  <span class="chip">крутиться ${w.days} днів</span>${w.variants>1?`<span class="chip">${w.variants} копій</span>`:''}${w.reuse?'<span class="chip">запускали повторно</span>':''}</div>
  <div class="card"><div class="sec" style="margin:0"><div class="l">Текст реклами</div>${esc(w.text||w.title)}</div>
  ${h.text?`<div class="sec"><div class="l">Чим чіпляє</div>${esc(h.text)}</div>`:'<div class="sec h2s" style="margin-left:0">Розбір ШІ з\'явиться після наступного оновлення.</div>'}${o.details?`<div class="sec"><div class="l">Що пропонує</div>${esc(o.details)}</div>`:''}
@@ -1027,7 +1029,7 @@ def build(cfg, now, stats, winners, analyses, concepts):
         "niche": cfg.get("niche", ""), "product": cfg.get("product", ""),
         "cur": cfg.get("currency_symbol", "₴"),
         "kpi": {"target_cpl": kpi.get("target_cpl", 60), "target_lead": kpi.get("target_lead", 150), "target_click": kpi.get("target_click", 8)},
-        "winners": [{**{k: w.get(k) for k in ("ad_id", "page_name", "days", "variants", "reuse", "text", "title", "snapshot_url")},
+        "winners": [{**{k: w.get(k) for k in ("ad_id", "page_id", "page_name", "days", "variants", "reuse", "text", "title", "snapshot_url")},
                      "a": analyses.get(w["ad_id"], {})}
                     for w in sorted(winners, key=lambda w: (w.get("text_source") != "body", -w["days"]))],
         "concepts": concepts or [],
