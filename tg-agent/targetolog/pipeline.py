@@ -91,6 +91,10 @@ def run(slug, now=None, force_brief=False, skip_collect=False, out=None, notify=
                 ads = [a for a in ads if cmp.keep(a, comps)]
                 db.upsert_ads(ads, day)
                 pages = {a["page_id"] for a in ads}
+                names = {a["page_id"]: a.get("page_name") for a in ads}
+                for c in comps:  # замість голого ID — назва сторінки
+                    if c["label"] == c.get("page_id") and names.get(c["page_id"]):
+                        c["label"] = names[c["page_id"]]
                 n_ads = len(ads)
                 log(f"01 Ad Library: {n_ads} оголошень твоїх конкурентів ({', '.join(c['label'] for c in comps)})")
             except Exception as e:  # noqa: BLE001

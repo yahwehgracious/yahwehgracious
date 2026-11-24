@@ -744,7 +744,7 @@ async function saveComps(){const parsed=compRows.flatMap(v=>String(v).split(/[\s
  if(unknown.length)lines.push(`\nДля ${unknown.join(', ')} шукатиму рекламу за назвою акаунта: може не знайти, якщо назва сторінки у Facebook інша. Точніше вставити посилання з бібліотеки реклами.`);
  L$.comps=list;await CS.set('comps',JSON.stringify(list));
  const j=await gget(`${ACT()}/adlabels?fields=id,name&limit=200`);for(const l of (j.data||[]).filter(l=>/^ai_comp /.test(l.name)))try{await fetch(`${GV}/${l.id}?access_token=${encodeURIComponent(L$.token)}`,{method:'DELETE'})}catch(e){}
- for(const c of list)await gpost(`${ACT()}/adlabels`,{name:`ai_comp ${c.kind}=${c.value}`});
+ for(const c of list)await gpost(`${ACT()}/adlabels`,{name:`ai_comp ${c.kind}=${c.value}${c.ig&&c.kind==='fb'?'|ig='+c.ig:''}`});
  compRows=list.map(c=>c.ig?'@'+c.ig:c.kind==='ig'?'@'+c.value:c.value);
  const run=await ghRun();compMsg=lines.join('\n')+'\n\n'+(run===true?'🚀 Оновлення запущено. За 3–5 хвилин прийде повідомлення в Telegram, тоді перезапусти застосунок.':run?'⚠ '+esc(run):'Збережено. Їхня реклама з\'явиться після оновлення: щопонеділка або кнопкою Run workflow → update на GitHub. Щоб запускати звідси, додай ключ GitHub у ⚙.')}
 async function ghRun(){const t=await CS.get('gh_token');if(!t||!LC.repo)return false;

@@ -128,7 +128,11 @@ def analyze(db, winners, cfg, llm, video_llm):
             try:
                 res = analyze_video(video_llm, c, cfg)
             except Exception as e:  # noqa: BLE001
-                log(f"   video {c['ad_id']}: {e}")
+                msg = str(e)
+                log(f"   video {c['ad_id']}: {msg[:160]}")
+                if re.search(r"429|quota|RESOURCE_EXHAUSTED|rate.?limit", msg, re.I):
+                    log("   ⚠ Ліміт відео-моделі вичерпано: решту відео розбираю за обкладинкою")
+                    video_llm = None
         if res:
             res["_model"] = video_llm.model
             db.put_analysis(c["creative_hash"], video_llm.model, res, now_utc().isoformat())

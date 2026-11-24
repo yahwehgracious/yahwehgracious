@@ -35,9 +35,9 @@ def read_labels(cfg):
         return None
     out = []
     for lab in labels:
-        m = re.match(r"^ai_comp (ig|fb)=(\S+)$", lab.get("name", ""))
+        m = re.match(r"^ai_comp (ig|fb)=([^\s|]+)(?:\|ig=(\S+))?$", lab.get("name", ""))
         if m:
-            out.append({"kind": m[1], "value": m[2]})
+            out.append({"kind": m[1], "value": m[2], **({"ig": m[3]} if m[3] else {})})
     return out
 
 
@@ -45,16 +45,22 @@ def resolve(cfg, items):
     """Кожен конкурент → {label, page_id | term, names} для скрапера й фільтра."""
     token = os.environ.get(cfg["meta"].get("token_env", "META_ACCESS_TOKEN"), "")
     v, ig = cfg["meta"].get("api_version", "v24.0"), (cfg.get("launch") or {}).get("instagram_user_id")
-    out = []
+    known = cfg.get("known_pages") or {}
+    by_id = {pid: u for u, pid in known.items()}
+    out, seen = [], set()
     for it in items:
-        if it["kind"] == "fb":
-            out.append({"label": it["value"], "page_id": it["value"], "names": set()})
+        pid = it["value"] if it["kind"] == "fb" else known.get(it["value"])
+        if pid:  # одна сторінка = один конкурент, навіть якщо в кабінеті лишились мітки і з ніком, і з ID
+            if pid in seen:
+                continue
+            seen.add(pid)
+            u = it.get("ig") or (it["value"] if it["kind"] == "ig" else by_id.get(pid))
+            out.append({"label": "@" + u if u else pid, "page_id": pid, "names": set()})
             continue
+        if it["value"] in seen:
+            continue
+        seen.add(it["value"])
         u, name = it["value"], None
-        pid = (cfg.get("known_pages") or {}).get(u)
-        if pid:  # відома відповідність Instagram → сторінка в бібліотеці реклами
-            out.append({"label": "@" + u, "page_id": pid, "names": set()})
-            continue
         if token and ig:
             try:
                 bd = _get(ig, token, v, fields=f"business_discovery.username({u}){{username,name}}").get("business_discovery", {})

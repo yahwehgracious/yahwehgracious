@@ -75,14 +75,46 @@ def diversity_check(concepts):
     return dup
 
 
+def _d(x, key):
+    """Поле розбору буває і dict, і просто рядком — приводимо до dict."""
+    return x if isinstance(x, dict) else ({key: x} if x else {})
+
+
+def _concepts(got):
+    """Модель іноді обгортає концепти по-різному або віддає їх рядками з JSON — приводимо до списку dict."""
+    if isinstance(got, str):
+        try:
+            got = json.loads(got)
+        except ValueError:
+            return []
+    if isinstance(got, dict):
+        got = got.get("concepts") or got.get("items") or got.get("ideas") or ([got] if got.get("concept") else [])
+    out = []
+    for c in got if isinstance(got, list) else []:
+        if isinstance(c, str):
+            try:
+                c = json.loads(c)
+            except ValueError:
+                continue
+        if isinstance(c, dict) and c.get("concept"):
+            c["script"] = [_d(x, "voice") for x in c.get("script") or [] if x] if isinstance(c.get("script"), list) else []
+            c["hooks"] = [str(x) for x in c.get("hooks") or []] if isinstance(c.get("hooks"), list) else []
+            if c.get("lead_form") is not None:
+                c["lead_form"] = _d(c["lead_form"], "type")
+            out.append(c)
+    return out
+
+
 def make_brief(llm, winners, analyses, pats, cfg, n):
     kb = cfg["niche_kb"]
     refs_txt = []
     for w in winners[:10]:
-        a = analyses.get(w["ad_id"], {})
+        a = analyses.get(w["ad_id"]) or {}
+        a = a if isinstance(a, dict) else {}
+        h, o = _d(a.get("hook"), "text"), _d(a.get("offer"), "type")
         refs_txt.append(f"- id={w['ad_id']} {w['page_name']} · {w['days']} дн ×{w['variants']} · {w['format']} · "
-                        f"hook={a.get('hook', {}).get('type')} «{a.get('hook', {}).get('text', '')[:120]}» · "
-                        f"offer={a.get('offer', {}).get('type')} · angle={a.get('angle')} · why: {a.get('why_works', '')}")
+                        f"hook={h.get('type')} «{str(h.get('text') or '')[:120]}» · "
+                        f"offer={o.get('type')} · angle={a.get('angle')} · why: {a.get('why_works', '')}")
     if not llm:
         return mock_brief(winners, analyses, cfg, n)
     # концепти генеруємо пачками по 2 — довгі українські сценарії не влазять в один виклик
@@ -97,9 +129,9 @@ def make_brief(llm, winners, analyses, pats, cfg, n):
             angles=", ".join(kb["angles"]), formats=", ".join(cfg.get("formats", ["Reels", "статика", "карусель"])), n=k)
         if avoid:
             prompt += f"\n\nВже є концепти (НЕ повторюй ці комбінації persona × angle × format): {avoid}"
-        got = llm.json(SYSTEM.format(niche=cfg["niche"]), prompt, max_tokens=12000)
-        if isinstance(got, dict):
-            got = got.get("concepts") or got.get("items") or [got]
+        got = _concepts(llm.json(SYSTEM.format(niche=cfg["niche"]), prompt, max_tokens=12000))
+        if not got:
+            raise ValueError("модель повернула ідеї не в тому форматі")
         concepts += got[:k]
     return concepts
 
