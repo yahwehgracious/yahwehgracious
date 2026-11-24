@@ -666,12 +666,12 @@ const parseComp=v=>{v=(v||'').trim();if(!v)return null;let m=v.match(/view_all_p
  m=v.match(/instagram\.com\/([A-Za-z0-9._]+)/i)||v.match(/^@?([A-Za-z0-9._]{2,30})$/);if(m&&!/^(p|reel|stories|explore)$/i.test(m[1]))return {kind:'ig',value:m[1].toLowerCase()};return {bad:v}};
 const compShow=c=>c.kind==='ig'?'@'+c.value:'сторінка '+c.value;
 const compCard=()=>{if(!compRows)compRows=[...(L$.comps||[]).map(c=>c.kind==='ig'?'@'+c.value:c.value)];while(compRows.length<3)compRows.push('');
- return `<div class="card"><div class="l">Твої конкуренти</div><div class="h2s" style="margin:0 0 6px">Посилання на Instagram (instagram.com/нік або @нік) чи посилання зі сторінки конкурента в бібліотеці реклами Meta. Я збираю всю їхню рекламу й розбираю, що окупається.</div>
+ return `<div class="card"><div class="l">Твої конкуренти</div><div class="h2s" style="margin:0 0 6px">Посилання на Instagram (instagram.com/нік або @нік) чи посилання зі сторінки конкурента в бібліотеці реклами Meta. Я збираю всю їхню рекламу й розбираю, що окупається. Можна вставити кілька через пробіл чи кому в одне поле.</div>
  ${compRows.map((v,k)=>`<input class="in" data-crow="${k}" value="${esc(v)}" placeholder="instagram.com/…" style="margin-top:8px">`).join('')}
  <div class="row2"><button class="btn ghost sm" data-cadd="1">＋ Ще один</button><button class="btn sm" data-csave="1">Зберегти</button></div>
  ${compMsg?`<div class="h2s" style="margin:10px 0 0;white-space:pre-wrap">${compMsg}</div>`:''}</div>`};
 document.addEventListener('input',e=>{const k=e.target.dataset?.crow;if(k!==undefined&&compRows)compRows[+k]=e.target.value});
-async function saveComps(){const parsed=compRows.map(parseComp).filter(Boolean),bad=parsed.filter(x=>x.bad);if(bad.length){compMsg='Не розпізнав: '+bad.map(x=>esc(x.bad)).join(', ');return}
+async function saveComps(){const parsed=compRows.flatMap(v=>String(v).split(/[\s,;]+/)).map(parseComp).filter(Boolean),bad=parsed.filter(x=>x.bad);if(bad.length){compMsg='Не розпізнав: '+bad.map(x=>esc(x.bad)).join(', ');return}
  const list=[...new Map(parsed.map(c=>[c.kind+c.value,c])).values()];const lines=[];
  for(const c of list){if(c.kind!=='ig'||!LC.ig){lines.push('✓ '+compShow(c));continue}
   try{const j=await gget(`${LC.ig}?fields=${encodeURIComponent(`business_discovery.username(${c.value}){name,username,followers_count}`)}`);const b=j.business_discovery||{};c.name=b.name||'';lines.push(`✓ @${c.value}${b.name?' · '+esc(b.name):''}${b.followers_count?' · '+fmt(b.followers_count)+' підписників':''}`)}
