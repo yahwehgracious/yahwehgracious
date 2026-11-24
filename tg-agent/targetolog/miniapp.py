@@ -861,22 +861,42 @@ const howView=()=>`<h2 style="margin-top:6px">Як працює ШІ-тарге�
 
 /* ───── Норми: юніт-економіка замість «60 грн з повітря» ───── */
 const NIN0={check:15000,share:15,chat:10,lead:7,click:12};
-const calcN=i=>{const cac=i.check*i.share/100,conv=cac*i.chat/100;return {cac,conv:Math.round(conv),lead:Math.round(cac*i.lead/100),link:Math.max(1,Math.round(conv*i.click/100))}};
-let nd=null;
+const NDEF={chat:10,lead:5,click:10};
+const nfill=i=>({...i,share:i.share||10,chat:i.chat||NDEF.chat,lead:i.lead||NDEF.lead,click:i.click||NDEF.click});
+const nguess=i=>[['chat','переписки → клієнти'],['lead','заявки → клієнти'],['click','переходи → переписки']].filter(([k])=>!i[k]).map(([k,l])=>`${l} ${NDEF[k]}%`).concat(i.share?[]:['на рекламу 10%']);
+const calcN=i0=>{const i=nfill(i0),cac=i.check*i.share/100,conv=cac*i.chat/100;return {cac,conv:Math.round(conv),lead:Math.round(cac*i.lead/100),link:Math.max(1,Math.round(conv*i.click/100))}};
+let nd=null,NH=null;
+/* Історія: скільки реально коштував результат за 12 міс (кампанії з відповідною метою) + оплати з таблиці за 90 днів */
+async function normHist(){const day=t=>new Date(t).toISOString().slice(0,10),tr=d=>encodeURIComponent(JSON.stringify({since:day(Date.now()-d*DAY),until:day(Date.now())}));
+ const [y,q]=await Promise.all([gall(`${ACT()}/insights?level=campaign&fields=campaign_id,objective,spend,actions,inline_link_clicks&time_range=${tr(365)}&limit=500`),gget(`${ACT()}/insights?fields=spend,actions,inline_link_clicks&time_range=${tr(92)}`)]);
+ const res={conv:{s:0,n:0},lead:{s:0,n:0},link:{s:0,n:0}};
+ for(const r of y.data||[]){const o=String(r.objective||''),k=/LEAD/.test(o)?'lead':/TRAFFIC|LINK_CLICK/.test(o)?'link':/ENGAGEMENT|MESSAGE/.test(o)?'conv':null;if(!k)continue;const x=px(r);res[k].s+=x.spend;res[k].n+=x[k]}
+ const q0=px((q.data||[])[0]||{}),paid=[...L$.marks,...L$.sheet].filter(m=>m.t==='paid'&&Date.now()-(m.d||Date.now())<92*DAY);
+ const sums=paid.map(m=>+m.s||0).filter(Boolean);NH={res,conv90:q0.conv,lead90:q0.lead,paid:paid.length,avg:sums.length?Math.round(sums.reduce((a,b)=>a+b,0)/sums.length):0,nsum:sums.length,sheet:!!L$.links.csv}}
+const nhistHtml=()=>{if(!NH)return'';const c=calcN(nd),L={conv:['Переписка','переписок'],lead:['Заявка','заявок'],link:['Перехід','переходів']};
+ const rows=Object.entries(NH.res).filter(([k,v])=>v.n>0).map(([k,v])=>{const cpr=v.s/v.n,T=c[k];return `<div class="sec"><div style="display:flex;justify-content:space-between;gap:8px"><span>${L[k][0]}: <b>${usd(Math.round(cpr))}</b></span><span style="color:var(--mut)">${fmt(v.n)} ${L[k][1]}</span></div><div class="h2s" style="margin:2px 0 0;color:${cpr<=T?'var(--good)':'var(--bad)'}">${cpr<=T?`дешевше твоєї норми ${usd(T)}: за цими цифрами реклама окупалась`:`дорожче твоєї норми ${usd(T)}: або норма замала, або реклама не окупалась`}</div></div>`}).join('');
+ const rate=NH.conv90>=20&&NH.paid?Math.round(NH.paid/NH.conv90*1000)/10:null;
+ const conv=!NH.sheet&&!NH.paid?`<div class="h2s">Скільки людей стає клієнтами, Meta не знає. Підключи таблицю клієнтів у ⚙, і я порахую це з оплат.</div>`
+  :rate!=null?`<div class="sec">За 90 днів: ${fmt(NH.conv90)} переписок і ${NH.paid} ${pl(NH.paid,['оплата','оплати','оплат'])} у таблиці = <b>${String(rate).replace('.',',')}%</b> стають клієнтами<button class="btn ghost sm" data-napply="chat:${rate}">Підставити ${String(rate).replace('.',',')}%</button><div class="h2s" style="margin:4px 0 0">Якщо в таблиці є клієнти не з реклами, відсоток завищений.</div></div>`
+  :`<div class="h2s">Для відсотка «стають клієнтами» замало даних: треба 20+ переписок за 90 днів і хоча б одна оплата в таблиці (зараз ${fmt(NH.conv90)} і ${NH.paid}).</div>`;
+ const avg=NH.nsum>=3?`<div class="sec">Середня оплата з таблиці: <b>${usd(NH.avg)}</b> (${NH.nsum} ${pl(NH.nsum,['оплата','оплати','оплат'])})<button class="btn ghost sm" data-napply="check:${NH.avg}">Підставити як «скільки приносить клієнт»</button></div>`:'';
+ return `<div class="card"><div class="l">Твій кабінет за 12 місяців</div>${rows||'<div class="h2s">Результатів за рік ще нема.</div>'}${conv}${avg}</div>`};
+
 const normsView=()=>()=>{const i=nd,c=calcN(i),f=(k,l,h,suf)=>`<div class="sec"><div class="l">${l}</div><div style="display:flex;align-items:center;gap:8px"><input class="in" data-nin="${k}" inputmode="numeric" value="${i[k]}" style="margin:0;max-width:130px"><span style="color:var(--mut)">${suf}</span></div><div class="h2s" style="margin:4px 0 0">${h}</div></div>`;
  return `<h2 style="margin-top:6px">Норми ціни результату</h2><p class="h2s">Таргетолог не бере норму з повітря: рахує, скільки можна віддати за одного клієнта, і множить на те, яка частка переписок стає клієнтами ${q('norm')}</p>
  <div class="card">${f('check','Скільки приносить один клієнт','Чек або прибуток з одного клієнта, що тобі зручніше. Головне, щоб відсоток нижче був саме від цього числа.','₴')}
  ${f('share','Скільки з цієї суми готовий віддати на рекламу','Зазвичай 10–20% для послуг. Більше, і реклама з\'їдає прибуток.','%')}
- ${f('chat','Зі 100 переписок стають клієнтами','Якщо не знаєш, почни з 5–10%. Потім уточниш із таблиці клієнтів.','%')}
+ ${f('chat','Зі 100 переписок стають клієнтами','Не знаєш — лиши 0, візьму типові 10% і позначу як припущення.','%')}
  ${f('lead','Зі 100 заявок з форми стають клієнтами','Заявки з форми зазвичай холодніші за переписки.','%')}
  ${f('click','Зі 100 переходів пишуть тобі','Для Telegram чи сайту зазвичай 5–15%.','%')}</div>
  <div class="card hero" id="nres">${nres(c)}</div>
+ <button class="btn ghost" data-nhist="1">📊 Порахувати з історії кабінету</button><div id="nhist">${nhistHtml()}</div>
  <button class="btn" data-nsave="1">Зберегти норми</button>
  <button class="btn ghost" data-nai="1">${L$.ai?'✨ ШІ перевірить, чи реалістично для ніші':'✨ Перевірка ШІ: додай ключ у налаштуваннях'}</button><div id="naiout"></div>
  <p class="h2s" style="margin-top:10px">Норми свої для кожного кабінету Meta: їх бачить і застосунок, і щоранковий звіт у Telegram. Новий власник бота задає свої.</p>`};
 const nres=c=>`<div class="lab">Можна віддати за одного клієнта <span class="pro">max CAC</span></div><div class="big">${usd(c.cac)}</div>
  <div class="mg" style="margin:10px 0 0"><div class="m"><span>Переписка</span><b>${usd(c.conv)}</b></div><div class="m"><span>Заявка</span><b>${usd(c.lead)}</b></div><div class="m"><span>Перехід</span><b>${usd(c.link)}</b></div></div>
- <div class="h2s" style="margin:8px 0 0">Переписка = ${usd(c.cac)} × ${nd.chat}%. Дорожче за це, і реклама не окупається.</div>`;
+ <div class="h2s" style="margin:8px 0 0">Переписка = ${usd(c.cac)} × ${nfill(nd).chat}%. Дорожче за це, і реклама не окупається.</div>${nguess(nd).length?`<div class="h2s" style="margin:6px 0 0;color:var(--mid)">Поки нема своїх даних, беру типові для послуг: ${nguess(nd).join(', ')}. Це припущення: уточни з таблиці клієнтів або кнопкою «Порахувати з історії».</div>`:''}`;
 document.addEventListener('input',e=>{const k=e.target.dataset?.nin;if(!k||!nd)return;nd[k]=+String(e.target.value).replace(/[^\d.]/g,'')||0;const el=$('#nres');if(el)el.innerHTML=nres(calcN(nd))});
 async function saveNorms(){const c=calcN(nd);L$.norms={conv:c.conv,lead:c.lead,link:c.link};L$.nin=nd;await CS.set('norms',JSON.stringify(L$.norms));await CS.set('norms_in',JSON.stringify(nd));
  /* щоб щоранковий звіт на GitHub бачив ті самі норми, зберігаємо їх міткою в кабінеті Meta */
@@ -1016,9 +1036,11 @@ async function act(d){
  if(d.copy!==undefined){const c=allIdeas()[+d.copy];try{await navigator.clipboard.writeText(c.primary_text+'\n\n'+c.headline);toast('Скопійовано ✓')}catch(x){toast('Виділи текст і скопіюй')}return}
  // норми й питання
  if(d.norms){nd={...NIN0,...(L$.nin||{})};go(normsView());return}
- if(d.nsave){await saveNorms();okHap();toast('✓ Норми збережено');back();return}
+ if(d.nsave){if(!nd.check){toast('Впиши, скільки приносить один клієнт');return}await saveNorms();okHap();toast('✓ Норми збережено');back();return}
+ if(d.nhist){const el=$('#nhist');el.innerHTML='<div class="card"><span class="spin"></span> Рахую історію…</div>';try{await normHist();el.innerHTML=nhistHtml()}catch(e){el.innerHTML='';err(e)}return}
+ if(d.napply){const [k,v]=d.napply.split(':');nd[k]=+v;re(normsView());return}
  if(d.nai){if(!L$.ai){go(setView0());return}const el=$('#naiout');el.innerHTML='<div class="card"><span class="spin"></span> ШІ рахує…</div>';const c=calcN(nd);
-  try{const t=await ai(SYSf(),`${aiCtx()}\n\nМої вхідні: середній чек ${nd.check} ₴, на рекламу ${nd.share}% чека, зі 100 переписок купують ${nd.chat}, зі 100 заявок ${nd.lead}, зі 100 переходів пишуть ${nd.click}. Вийшло: клієнт до ${Math.round(c.cac)} ₴, переписка до ${c.conv} ₴, заявка до ${c.lead} ₴, перехід до ${c.link} ₴.
+  try{const t=await ai(SYSf(),`${aiCtx()}\n\nМої вхідні: середній чек ${nfill(nd).check} ₴, на рекламу ${nfill(nd).share}% чека, зі 100 переписок купують ${nfill(nd).chat}, зі 100 заявок ${nfill(nd).lead}, зі 100 переходів пишуть ${nfill(nd).click}. Вийшло: клієнт до ${Math.round(c.cac)} ₴, переписка до ${c.conv} ₴, заявка до ${c.lead} ₴, перехід до ${c.link} ₴.
 Оціни як таргетолог: чи реалістичні ці припущення для моєї ніші в Україні, яка зазвичай ціна переписки в схожих нішах, що б ти змінив. Коротко, 4–6 речень. Формат: {"answer":"текст"}`,null,true);el.innerHTML=`<div class="card" style="white-space:pre-wrap">${esc(pj(t).answer)}</div>`}catch(e){el.innerHTML='';err(e)}return}
  if(d.askv){go(askView());return}
  if(d.askq){askQ=d.askq;re(askView());return}
@@ -1049,7 +1071,7 @@ async function act(d){
  if(d.open){try{tg.openLink(d.open)}catch(x){window.open(d.open)}return}
  if(d.q){const g=G[d.q];sheet(`<h3>${g[0]} <span class="pro">${g[1]}</span></h3><div style="color:#c9c9d6;font-size:15px">${g[2]}</div><button class="btn ghost" data-x="1">Зрозуміло</button>`);return}}
 const keepNc=()=>{if(!nc)return;if($('#nbudin'))nc.budget=Math.round(+$('#nbudin').value.replace(/\D/g,''))||nc.budget;if($('#nlink'))nc.link=$('#nlink').value.trim();if($('#nname'))nc.name=$('#nname').value.trim()};
-document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-crmode],[data-cup],[data-cdown],[data-cdel],[data-compset],[data-rules],[data-rsave],[data-rdef],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rgo],[data-rq],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-cadd],[data-ghrun],[data-csave],[data-ghsave],[data-ghdel],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
+document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-crmode],[data-cup],[data-cdown],[data-cdel],[data-compset],[data-rules],[data-rsave],[data-rdef],[data-nhist],[data-napply],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rgo],[data-rq],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-cadd],[data-ghrun],[data-csave],[data-ghsave],[data-ghdel],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
  if(!t)return;if(t.dataset.q)e.stopPropagation();try{await act({...t.dataset})}catch(x){err(x)}});
 render();liveLoad();
 /* Telegram кешує сторінку: якщо на GitHub уже новіша збірка — перезавантажуємось */
