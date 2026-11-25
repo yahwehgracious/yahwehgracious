@@ -134,6 +134,10 @@ const okHap=()=>{try{tg.HapticFeedback.notificationOccurred('success')}catch(e){
 const toast=t=>{const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),2400)};
 const err=e=>toast('Помилка: '+String(e.message||e).slice(0,110));
 const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
+/* Кілька кабінетів: кабінет 0 — основний із збірки; кожен інший має свої ключі, налаштування й дані під префіксом p{N}_ */
+const LC0={...LC},BASE_NAME=D.client,PROF=+(ls.get('prof_active')||0)||0,PFX=PROF?`p${PROF}_`:'',GLOBAL_K=new Set(['prof_active','profiles']);
+if(PROF){try{const p=JSON.parse(ls.get(PFX+'prof')||'null');if(p){Object.assign(LC,{link:'',tg_link:'',site_link:'',repo:'',known:{},budget:LC.budget,countries:LC.countries},p);
+ D.client=p.name||'Кабінет';D.niche=p.niche||'';D.product=p.product||p.niche||'';D.winners=[];D.concepts=[]}}catch(e){}}
 const confirmDo=(msg,fn)=>{if(IN_TG&&tg.showConfirm)tg.showConfirm(msg,ok=>{if(ok)fn()});else fn()};
 const pl=(n,f)=>{n=Math.abs(Math.round(n));const a=n%10,b=n%100;return f[a===1&&b!==11?0:a>=2&&a<=4&&(b<10||b>=20)?1:2]};
 const DAY=864e5;
@@ -165,9 +169,11 @@ function countUp(){document.querySelectorAll('[data-cu]').forEach(el=>{if(el.dat
 const cu=(v,pre='')=>v==null?'—':`<span data-cu="${Math.round(v)}" data-pre="${pre}">${pre}0</span>`;
 
 /* ───── Сховище: Telegram CloudStorage (до 4096 символів на ключ), дублюється в localStorage ───── */
-const CS={get:k=>new Promise(r=>{try{if(!tg?.CloudStorage||!IN_TG)throw 0;tg.CloudStorage.getItem(k,(e,v)=>r(e||!v?ls.get(k):v))}catch(e){r(ls.get(k))}}),
+const PK=k=>GLOBAL_K.has(k)?k:PFX+k;
+const CS0={get:k=>new Promise(r=>{try{if(!tg?.CloudStorage||!IN_TG)throw 0;tg.CloudStorage.getItem(k,(e,v)=>r(e||!v?ls.get(k):v))}catch(e){r(ls.get(k))}}),
  set:(k,v)=>new Promise(r=>{v=String(v);ls.set(k,v);if(v.length>4000)console.warn('CS: завеликий ключ',k,v.length);try{if(!tg?.CloudStorage||!IN_TG)throw 0;tg.CloudStorage.setItem(k,v.slice(0,4096),()=>r())}catch(e){r()}}),
  del:k=>new Promise(r=>{ls.del(k);try{if(!IN_TG)throw 0;tg.CloudStorage.removeItem(k,()=>r())}catch(e){r()}})};
+const CS={get:k=>CS0.get(PK(k)),set:(k,v)=>CS0.set(PK(k),v),del:k=>CS0.del(PK(k))};
 const CSj=async(k,d)=>{try{return JSON.parse(await CS.get(k)||'null')??d}catch(e){return d}};
 
 /* ───── Meta Graph API ───── */
@@ -331,7 +337,7 @@ function render(){navbar();const v=stack.at(-1);try{v?tg.BackButton.show():tg.Ba
  const anim=!v&&animTab!=null&&animTab!==tab;if(!v)animTab=tab;
  $('#app').innerHTML=(v&&!IN_TG?`<button class="how" data-back="1" style="margin:2px 0 12px">‹ Назад</button>`:'')+`<div class="${anim?'stagger':''}">${(v||V[tab])()}</div>`;
  if(v)window.scrollTo(0,0);requestAnimationFrame(()=>{charts();countUp()})}
-const top=t=>`<div class="top"><div><div class="who">${esc(t||'ШІ-таргетолог')}${L$.loading?' · <span class="spin"></span>':''}</div><div class="name">${esc(D.client)}</div></div><button class="how" data-set="1" aria-label="Налаштування" style="padding:9px 11px;font-size:16px">⚙</button></div>`;
+const top=t=>`<div class="top"><div><div class="who">${esc(t||'ШІ-таргетолог')}${L$.loading?' · <span class="spin"></span>':''}</div><div class="name" data-profs="1" style="cursor:pointer">${esc(D.client)} <span style="opacity:.55;font-size:.75em">▾</span></div></div><button class="how" data-set="1" aria-label="Налаштування" style="padding:9px 11px;font-size:16px">⚙</button></div>`;
 const V={};
 const re0=()=>{if(stack.length)re(stack.at(-1));else render()};
 
@@ -897,6 +903,51 @@ const nfill=i=>({...i,share:i.share||10,chat:i.chat||NDEF.chat,lead:i.lead||NDEF
 const nguess=i=>[['chat','переписки → клієнти'],['lead','заявки → клієнти'],['click','переходи → переписки']].filter(([k])=>!i[k]).map(([k,l])=>`${l} ${NDEF[k]}%`).concat(i.share?[]:['на рекламу 10%']);
 const calcN=i0=>{const i=nfill(i0),cac=i.check*i.share/100,conv=cac*i.chat/100;return {cac,conv:Math.round(conv),lead:Math.round(cac*i.lead/100),link:Math.max(1,Math.round(conv*i.click/100))}};
 let nd=null,NH=null;
+async function pagesFor(){const j=await gget(`act_${np.acc}/promote_pages?fields=id,name,instagram_business_account{id,username}&limit=50`,np.token);np.pages=j.data||[];if(np.pages.length===1)np.page=np.pages[0].id}
+/* ---------- кабінети ---------- */
+let PR=null,np=null,SUM=null;
+async function loadProfs(){PR=await CSj('profiles',[])}
+const profsView=()=>()=>{if(!PR){loadProfs().then(()=>re0());return `<div class="card"><span class="spin"></span></div>`}
+ const all=[{id:0},...PR];
+ return `<h2 style="margin-top:6px">Кабінети</h2><p class="h2s">Кожен кабінет живе окремо: свій ключ Meta, свій ключ ШІ, свої норми, правила, креативи й конкуренти.</p>
+ <button class="btn" data-sum="1">📊 Усі кабінети разом</button>
+ ${all.map(p=>`<div class="item" data-prof="${p.id}"><div class="ico i-ai">${p.id===PROF?'✓':'💼'}</div><div class="tx"><b>${esc(p.id?p.name:BASE_NAME)}</b><small>${p.id===PROF?'відкритий зараз':'перейти'}${p.id?' · '+esc(p.niche||''):''}</small></div><span class="chev">›</span></div>`).join('')}
+ <button class="btn ghost" data-padd="1">＋ Додати кабінет</button>`};
+const npView=()=>()=>{const d=np;return `<h2 style="margin-top:6px">Новий кабінет</h2>
+ <div class="card"><div class="l">Назва (як тобі зручно)</div><input id="pn" class="in" value="${esc(d.name||'')}" placeholder="напр. Стоматологія Ольги">
+ <div class="l" style="margin-top:14px">Ніша і що продаємо</div><input id="pni" class="in" value="${esc(d.niche||'')}" placeholder="напр. стоматологія, імпланти під ключ">
+ <div class="h2s" style="margin:4px 0 0">ШІ пише тексти й ідеї саме під цю нішу.</div>
+ <div class="l" style="margin-top:14px">Ключ Meta цього кабінету</div><input id="pt" class="in" value="${esc(d.token||'')}" placeholder="EAA…" autocomplete="off">
+ <div class="h2s" style="margin:4px 0 0">Окремий ключ системного користувача від бізнесу клієнта. Зберігається тільки в твоєму Telegram.</div>
+ <div class="l" style="margin-top:14px">Ключ ШІ (Anthropic чи Gemini)</div><input id="pai" class="in" value="${esc(d.ai||'')}" placeholder="sk-ant-… або AIza…" autocomplete="off">
+ <div class="h2s" style="margin:4px 0 0">Можна лишити порожнім і додати потім у налаштуваннях кабінету.</div>
+ <button class="btn ghost" data-pfind="1">Знайти рекламні кабінети</button></div>
+ ${d.accs?`<div class="card"><div class="l">Рекламний кабінет</div>${d.accs.length?d.accs.map(a=>`<div class="item" data-pacc="${a.account_id}" style="${d.acc===a.account_id?'outline:2px solid var(--g2)':''}"><div class="tx"><b>${esc(a.name)}</b><small>${a.account_id} · ${a.currency}${a.account_status!==1?' · ⚠ статус '+a.account_status:''}</small></div></div>`).join(''):'<div class="h2s">Ключ не бачить жодного кабінету. Дай системному користувачу доступ до кабінету клієнта.</div>'}</div>`:''}
+ ${d.pages?`<div class="card"><div class="l">Сторінка, від імені якої реклама</div>${d.pages.length?d.pages.map(p=>`<div class="item" data-ppage="${p.id}" style="${d.page===p.id?'outline:2px solid var(--g2)':''}"><div class="tx"><b>${esc(p.name)}</b><small>${p.instagram_business_account?.username?'Instagram @'+esc(p.instagram_business_account.username):'без Instagram'}</small></div></div>`).join(''):'<div class="h2s">Ключ не бачить сторінок цього кабінету. Дай системному користувачу доступ до сторінки клієнта.</div>'}</div>`:''}
+ ${d.acc&&d.page?`<button class="btn" data-psave="1">Зберегти кабінет і перейти</button>`:''}`};
+const keepNp=()=>{if(!$('#pn'))return;Object.assign(np,{name:$('#pn').value.trim(),niche:$('#pni').value.trim(),token:$('#pt').value.trim(),ai:$('#pai').value.trim()})};
+async function switchProf(id){ls.set('prof_active',String(id));await CS0.set('prof_active',String(id));location.reload()}
+/* зведення: по кожному кабінету його ключем */
+async function loadSum(){const all=[{id:0},...(PR||[])],out=[];
+ await Promise.all(all.map(async p=>{const px_=p.id?`p${p.id}_`:'',g=k=>CS0.get(GLOBAL_K.has(k)?k:px_+k);
+  const t=await g('meta_token'),pr=p.id?JSON.parse(await g('prof')||'null'):LC0,nm=JSON.parse(await g('norms')||'null')||{},row={id:p.id,name:p.id?(pr?.name||p.name):BASE_NAME};
+  if(!t||!pr?.acc){row.err='нема ключа Meta';out.push(row);return}
+  try{const A=`act_${pr.acc}`,[a,i,rj]=await Promise.all([gget(`${A}?fields=name,currency,account_status,disable_reason`,t),gget(`${A}/insights?date_preset=last_7d&fields=spend,actions,inline_link_clicks`,t),
+    gget(`${A}/ads?fields=id&effective_status=${encodeURIComponent('["DISAPPROVED","WITH_ISSUES"]')}&limit=50`,t)]);
+   const x=px((i.data||[])[0]||{}),r=['conv','lead','link'].find(k=>x[k])||'conv',T=nm[r]||NR(r);
+   Object.assign(row,{cur:a.currency,st:a.account_status,dr:a.disable_reason,spend:x.spend,res:r,n:x[r]||0,cpr:x[r]?x.spend/x[r]:null,T,rej:(rj.data||[]).length})}catch(e){row.err=e.message.slice(0,90)}
+  out.push(row)}));
+ SUM=out.sort((a,b)=>sev(b)-sev(a))}
+const sev=r=>r.err?3:(r.st&&![1,201].includes(r.st))?4:r.rej?2:(r.cpr!=null&&r.cpr>1.5*r.T)||(r.spend>2*r.T&&!r.n)?1:0;
+const sumView=()=>()=>{if(!SUM){loadSum().then(()=>re0());return `<h2 style="margin-top:6px">Усі кабінети</h2><div class="card"><span class="spin"></span> Збираю дані з усіх кабінетів…</div>`}
+ const cur=[...new Set(SUM.filter(r=>r.cur).map(r=>r.cur))],tot=cur.length===1?SUM.reduce((m,r)=>m+(r.spend||0),0):null;
+ return `<h2 style="margin-top:6px">Усі кабінети</h2><p class="h2s">Останні 7 днів. Зверху ті, де щось не так.${tot!=null?` Разом витрачено <b>${fmt(Math.round(tot))} ${cur[0]}</b>.`:''}</p>
+ ${SUM.map(r=>{const bad=sev(r),col=bad>=2?'var(--bad)':bad===1?'var(--mid)':'var(--good)';
+  const al=r.err?`⚠ ${esc(r.err)}`:(r.st&&![1,201].includes(r.st))?`🚨 ${ACCST[r.st]||'проблема з кабінетом'}`:r.rej?`⛔ ${r.rej} ${pl(r.rej,['оголошення відхилене','оголошення відхилені','оголошень відхилено'])}`:'';
+  return `<div class="item" data-prof="${r.id}"><div class="ico" style="background:${col};width:10px;min-width:10px;border-radius:5px;padding:0"></div><div class="tx"><b>${esc(r.name)}</b>
+  <small>${r.err?'':`${fmt(Math.round(r.spend||0))} ${r.cur||''} · ${fmt(r.n)} ${RES[r.res][2]}${r.cpr!=null?` по ${fmt(Math.round(r.cpr))} (норма ${fmt(Math.round(r.T))})`:''}`}${al?`<br><span style="color:${col}">${al}</span>`:''}</small></div><span class="chev">›</span></div>`}).join('')}
+ <button class="btn ghost" data-sumre="1">Оновити</button>`};
+
 /* Історія: скільки реально коштував результат за 12 міс (кампанії з відповідною метою) + оплати з таблиці за 90 днів */
 async function normHist(){const day=t=>new Date(t).toISOString().slice(0,10),tr=d=>encodeURIComponent(JSON.stringify({since:day(Date.now()-d*DAY),until:day(Date.now())}));
  const [y,q]=await Promise.all([gall(`${ACT()}/insights?level=campaign&fields=campaign_id,objective,spend,actions,inline_link_clicks&time_range=${tr(365)}&limit=500`),gget(`${ACT()}/insights?fields=spend,actions,inline_link_clicks&time_range=${tr(92)}`)]);
@@ -1089,6 +1140,18 @@ async function act(d){
  if(d.rules){rd={...RU()};go(rulesView());return}
  if(d.rsave){await saveRules();okHap();toast('✓ Правила збережено');back();return}
  if(d.rdef){rd={...RDEF};re(rulesView());return}
+ if(d.profs){PR=null;go(profsView());return}
+ if(d.prof!==undefined){const id=+d.prof;if(id===PROF){stack=[];tab='home';render();return}await switchProf(id);return}
+ if(d.sum){SUM=null;await loadProfs();go(sumView());return}
+ if(d.sumre){SUM=null;re0();return}
+ if(d.padd){np={};go(npView());return}
+ if(d.pfind){keepNp();if(!np.token){toast('Встав ключ Meta');return}toast('Шукаю…');try{const j=await gget(`me/adaccounts?fields=account_id,name,currency,account_status&limit=100`,np.token);np.accs=j.data||[];np.acc=np.accs.length===1?np.accs[0].account_id:null;np.pages=null;if(np.acc)await pagesFor();re(npView())}catch(e){err(e)}return}
+ if(d.pacc){keepNp();np.acc=d.pacc;np.page=null;try{await pagesFor()}catch(e){err(e)}re(npView());return}
+ if(d.ppage){keepNp();np.page=d.ppage;re(npView());return}
+ if(d.psave){keepNp();if(!np.name){toast('Дай кабінету назву');return}await loadProfs();const id=Math.max(0,...PR.map(p=>p.id))+1,px_=`p${id}_`,pg=np.pages.find(p=>p.id===np.page),a=np.accs.find(x=>x.account_id===np.acc);
+  const prof={name:np.name,niche:np.niche,acc:np.acc,page:np.page,ig:pg?.instagram_business_account?.id||'',ig_name:pg?.instagram_business_account?.username||'',cur:a?.currency};
+  await CS0.set(px_+'prof',JSON.stringify(prof));await CS0.set(px_+'meta_token',np.token);if(np.ai)await CS0.set(px_+'ai_key',np.ai);
+  PR.push({id,name:np.name,niche:np.niche});await CS0.set('profiles',JSON.stringify(PR));toast('✓ Кабінет додано');await switchProf(id);return}
  if(d.compset){if(!tok()){go(keyView());return}go(compsView());return}
  if(d.cadd){compRows.push('');re0();return}
  if(d.csave){if(!tok()){go(keyView());return}compMsg='<span class="spin"></span> Перевіряю й зберігаю…';re0();try{await saveComps();okHap()}catch(e){compMsg='⚠ '+esc(e.message)}re0();return}
@@ -1110,9 +1173,11 @@ async function act(d){
  if(d.open){try{tg.openLink(d.open)}catch(x){window.open(d.open)}return}
  if(d.q){const g=G[d.q];sheet(`<h3>${g[0]} <span class="pro">${g[1]}</span></h3><div style="color:#c9c9d6;font-size:15px">${g[2]}</div><button class="btn ghost" data-x="1">Зрозуміло</button>`);return}}
 const keepNc=()=>{if(!nc)return;if($('#nbudin'))nc.budget=Math.round(+$('#nbudin').value.replace(/\D/g,''))||nc.budget;if($('#nlink'))nc.link=$('#nlink').value.trim();if($('#nname'))nc.name=$('#nname').value.trim()};
-document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-crmode],[data-cup],[data-cdown],[data-cdel],[data-compset],[data-rules],[data-rsave],[data-rdef],[data-nhist],[data-napply],[data-igre],[data-igsel],[data-igsave],[data-fdel],[data-vdrop],[data-vonly],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rgo],[data-rq],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-cadd],[data-ghrun],[data-csave],[data-ghsave],[data-ghdel],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
+document.addEventListener('click',async e=>{const t=e.target.closest('[data-camp],[data-newcamp],[data-ngoal],[data-nbud],[data-nform],[data-naud],[data-ncreate],[data-cpause],[data-cresume],[data-rt],[data-set2],[data-bstep],[data-bset],[data-bsave],[data-tsave],[data-spause],[data-sresume],[data-aall],[data-arm],[data-apick],[data-arad],[data-aadv],[data-aage],[data-agen],[data-pauto],[data-pl],[data-add],[data-useidea],[data-crmode],[data-cup],[data-cdown],[data-cdel],[data-compset],[data-rules],[data-rsave],[data-rdef],[data-nhist],[data-napply],[data-igre],[data-igsel],[data-igsave],[data-fdel],[data-vdrop],[data-vonly],[data-profs],[data-prof],[data-sum],[data-sumre],[data-padd],[data-pfind],[data-pacc],[data-ppage],[data-psave],[data-aitext],[data-save],[data-review],[data-launch],[data-lcamp],[data-lgo],[data-edit],[data-aifix],[data-esave],[data-vpause],[data-pausecr],[data-resumecr],[data-delcr],[data-cr],[data-adlive],[data-pause],[data-resume],[data-rec],[data-recno],[data-mark],[data-mt],[data-mad],[data-msave],[data-rp],[data-rgo],[data-rq],[data-rc],[data-rb],[data-aiideas],[data-delidea],[data-iseg],[data-idea],[data-comp],[data-cgrp],[data-bt],[data-copy],[data-set],[data-cadd],[data-ghrun],[data-csave],[data-ghsave],[data-ghdel],[data-norms],[data-nsave],[data-nai],[data-askv],[data-askq],[data-ask],[data-key],[data-savekey],[data-delkey],[data-aisave],[data-aidel],[data-lsave],[data-how],[data-back],[data-tab2],[data-open],[data-q]');
  if(!t)return;if(t.dataset.q)e.stopPropagation();try{await act({...t.dataset})}catch(x){err(x)}});
 render();liveLoad();
+/* інший пристрій міг перемкнути кабінет: беремо вибір із хмари Telegram */
+(async()=>{const a=+(await CS0.get('prof_active')||0)||0;if(a!==PROF){const p=a?await CS0.get(`p${a}_prof`):null;if(a&&!p)return;if(p)ls.set(`p${a}_prof`,p);ls.set('prof_active',String(a));location.reload()}})();
 /* Telegram кешує сторінку: якщо на GitHub уже новіша збірка — перезавантажуємось */
 fetch(location.pathname+'?t='+Date.now(),{cache:'no-store'}).then(r=>r.text()).then(t=>{const m=t.match(/"build": "([^"]+)"/);if(m&&m[1]!==D.build&&!location.search.includes('v='+m[1]))location.replace(location.pathname+'?v='+m[1]+location.hash)}).catch(()=>{});
 }</script></body></html>"""
